@@ -11,42 +11,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// State — semua kemungkinan kondisi UI auth
-// Sealed class biar exhaustive — harus handle semua case
 sealed class AuthState {
-    object Idle : AuthState()       // initial state, belum ada aksi
-    object Loading : AuthState()    // sedang proses (hit API)
-    object Success : AuthState()    // berhasil login/register
-    data class Error(val message: String) : AuthState() // gagal dengan pesan
+    object Idle : AuthState()
+    object Loading : AuthState()
+    object Success : AuthState()
+    data class Error(val message: String) : AuthState()
 }
 
-// @HiltViewModel = Hilt tau cara inject ViewModel ini
-// @Inject constructor = Hilt otomatis inject AuthRepository
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    // StateFlow = versi Flow yang selalu punya nilai saat ini
-    // MutableStateFlow = bisa diubah dari dalam ViewModel
-    // asStateFlow() = expose versi read-only ke UI (UI tidak bisa ubah langsung)
-    //
-    // Konsep: ViewModel "publish" state, UI "subscribe" dan render sesuai state
-    // Di XML dulu: LiveData. Di Compose modern: StateFlow
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    // ── LOGIN ──────────────────────────────────────────────────────
     fun login(email: String, password: String) {
-        // viewModelScope = coroutine scope yang tied ke lifecycle ViewModel
-        // Kalau ViewModel destroyed (misal user keluar app), coroutine otomatis cancel
-        // Di XML dulu ini harus manual cancel di onCleared()
         viewModelScope.launch {
-            _authState.value = AuthState.Loading // tampilkan loading di UI
-
+            _authState.value = AuthState.Loading
             val result = authRepository.login(email, password)
-
-            // when = switch/when expression Kotlin — lebih ekspresif dari if-else
             _authState.value = when (result) {
                 is Result.Success -> AuthState.Success
                 is Result.Error   -> AuthState.Error(result.message)
@@ -54,13 +37,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // ── REGISTER ──────────────────────────────────────────────────
     fun register(name: String, email: String, password: String, waNumber: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-
             val result = authRepository.register(name, email, password, waNumber)
-
             _authState.value = when (result) {
                 is Result.Success -> AuthState.Success
                 is Result.Error   -> AuthState.Error(result.message)
@@ -68,8 +48,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // Reset state ke Idle — dipanggil setelah error ditampilkan
-    // Biar error tidak muncul terus kalau user rotate screen
+    // reset setelah error ditampilkan — mencegah re-trigger saat recomposition
     fun resetState() {
         _authState.value = AuthState.Idle
     }

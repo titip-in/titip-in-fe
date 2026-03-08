@@ -34,7 +34,6 @@ fun RegisterScreen(
     onRegisterSuccess: () -> Unit = {},
     viewModel: AuthViewModel = hiltViewModel()
 ) {
-    // ── STATE ──────────────────────────────────────────────────────
     var nama by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var noWa by remember { mutableStateOf("") }
@@ -46,22 +45,17 @@ fun RegisterScreen(
     val authState by viewModel.authState.collectAsState()
     val isLoading = authState is AuthState.Loading
 
-    androidx.compose.runtime.LaunchedEffect(authState) {
+    LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
-                viewModel.resetState() // reset DULU biar tidak double trigger
-                onRegisterSuccess()    // baru navigate
+                viewModel.resetState()
+                onRegisterSuccess()
             }
             else -> Unit
         }
     }
 
-    // Validasi password match — computed value, bukan state terpisah
-    // Di Compose, kita bisa hitung nilai dari state lain secara langsung
-    // Ga perlu TextWatcher seperti di XML
     val passwordMatch = password == konfirmasiPassword
-    // formValid: semua field harus diisi + password min 8 + konfirmasi harus match
-    // konfirmasiPassword.isNotEmpty() wajib — biar tombol disable kalau belum diisi
     val formValid = nama.isNotEmpty() && email.isNotEmpty() &&
             noWa.isNotEmpty() && password.length >= 8 &&
             konfirmasiPassword.isNotEmpty() && passwordMatch
@@ -75,18 +69,13 @@ fun RegisterScreen(
     ) {
         Spacer(modifier = Modifier.height(Spacing.sm))
 
-        // ── HERO — lebih compact dari Login karena form lebih panjang ──
         Box(
             modifier = Modifier
                 .padding(horizontal = Spacing.md)
                 .fillMaxWidth()
-                .background(
-                    color = Charcoal,
-                    shape = RoundedCornerShape(Radius.xl)
-                )
+                .background(color = Charcoal, shape = RoundedCornerShape(Radius.xl))
                 .padding(horizontal = Spacing.lg, vertical = Spacing.lg)
         ) {
-            // Blob dekoratif
             Box(
                 modifier = Modifier
                     .size(80.dp)
@@ -95,7 +84,6 @@ fun RegisterScreen(
                     .align(Alignment.TopEnd)
                     .offset(x = 20.dp, y = (-20).dp)
             )
-
             Column {
                 Text(
                     text = "● DAFTAR SEKARANG",
@@ -125,7 +113,6 @@ fun RegisterScreen(
             }
         }
 
-        // ── FORM ───────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -138,7 +125,6 @@ fun RegisterScreen(
                 onValueChange = { nama = it },
                 label         = "NAMA LENGKAP",
                 placeholder   = "Rizky Pratama",
-                keyboardType  = KeyboardType.Text,
                 isFocused     = nama.isNotEmpty()
             )
 
@@ -152,7 +138,6 @@ fun RegisterScreen(
             )
 
             // No WhatsApp — prefix +62
-            // Ini contoh field dengan prefix teks di dalam
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "NO. WHATSAPP",
@@ -167,18 +152,11 @@ fun RegisterScreen(
                     value         = noWa,
                     onValueChange = { noWa = it },
                     modifier      = Modifier.fillMaxWidth(),
-                    // prefix = teks di kiri dalam field, tidak bisa diedit user
                     prefix = {
-                        Text(
-                            text = "+62 ",
-                            fontSize = 13.sp,
-                            fontFamily = DmSansFamily,
-                            color = Charcoal60
-                        )
+                        Text("+62 ", fontSize = 13.sp, fontFamily = DmSansFamily, color = Charcoal60)
                     },
                     placeholder = {
-                        Text("8123456789", fontSize = 13.sp,
-                            color = Charcoal30, fontFamily = DmSansFamily)
+                        Text("8123456789", fontSize = 13.sp, color = Charcoal30, fontFamily = DmSansFamily)
                     },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = 13.sp, fontFamily = DmSansFamily, color = Charcoal
@@ -187,23 +165,22 @@ fun RegisterScreen(
                     singleLine = true,
                     shape  = RoundedCornerShape(Radius.md),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = if (noWa.isNotEmpty()) Sage else Terracotta,
-                        unfocusedBorderColor = if (noWa.isNotEmpty()) Sage else Charcoal10,
+                        focusedBorderColor      = if (noWa.isNotEmpty()) Sage else Terracotta,
+                        unfocusedBorderColor    = if (noWa.isNotEmpty()) Sage else Charcoal10,
                         focusedContainerColor   = CreamDark,
                         unfocusedContainerColor = CreamDark,
-                        cursorColor = Terracotta
+                        cursorColor             = Terracotta
                     )
                 )
             }
 
-            // Password field
             TitipinTextField(
-                value               = password,
-                onValueChange       = { password = it },
-                label               = "PASSWORD",
-                placeholder         = "min. 8 karakter",
-                keyboardType        = KeyboardType.Password,
-                isFocused           = password.isNotEmpty(),
+                value                = password,
+                onValueChange        = { password = it },
+                label                = "PASSWORD",
+                placeholder          = "min. 8 karakter",
+                keyboardType         = KeyboardType.Password,
+                isFocused            = password.isNotEmpty(),
                 visualTransformation = if (passwordVisible)
                     VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
@@ -218,17 +195,14 @@ fun RegisterScreen(
                 }
             )
 
-            // Konfirmasi password — dengan indikator match/tidak
             Column(modifier = Modifier.fillMaxWidth()) {
                 TitipinTextField(
-                    value               = konfirmasiPassword,
-                    onValueChange       = { konfirmasiPassword = it },
-                    label               = "KONFIRMASI PASSWORD",
-                    placeholder         = "ulangi password",
-                    keyboardType        = KeyboardType.Password,
-                    // Kalau isi dan tidak match → border merah (Terracotta)
-                    // Kalau match → border hijau (Sage)
-                    isFocused           = konfirmasiPassword.isNotEmpty() && passwordMatch,
+                    value                = konfirmasiPassword,
+                    onValueChange        = { konfirmasiPassword = it },
+                    label                = "KONFIRMASI PASSWORD",
+                    placeholder          = "ulangi password",
+                    keyboardType         = KeyboardType.Password,
+                    isFocused            = konfirmasiPassword.isNotEmpty() && passwordMatch,
                     visualTransformation = if (konfirmasiVisible)
                         VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -242,12 +216,7 @@ fun RegisterScreen(
                         }
                     }
                 )
-
-                // Pesan error muncul kalau konfirmasi tidak cocok
-                // Ini contoh conditional UI di Compose — jauh lebih simpel dari XML
-                // Di XML: textView.visibility = View.VISIBLE / GONE
-                // Di Compose: cukup if statement biasa
-                if (!passwordMatch) {
+                if (konfirmasiPassword.isNotEmpty() && !passwordMatch) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "⚠ Password tidak cocok",
@@ -259,7 +228,6 @@ fun RegisterScreen(
                 }
             }
 
-            // Error dari API
             if (authState is AuthState.Error) {
                 Text(
                     text = "⚠ ${(authState as? AuthState.Error)?.message ?: ""}",
@@ -272,18 +240,14 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(Spacing.xs))
 
-            // Tombol daftar
             Button(
-                onClick = {
-                    // Nanti panggil ViewModel.register() di sini
-                    viewModel.register(nama, email, password, noWa)
-                },
+                onClick  = { viewModel.register(nama, email, password, noWa) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(ComponentSize.buttonHeight),
                 enabled = formValid && !isLoading,
-                shape  = RoundedCornerShape(Radius.full),
-                colors = ButtonDefaults.buttonColors(
+                shape   = RoundedCornerShape(Radius.full),
+                colors  = ButtonDefaults.buttonColors(
                     containerColor         = Charcoal,
                     contentColor           = Cream,
                     disabledContainerColor = Charcoal10,
@@ -291,22 +255,12 @@ fun RegisterScreen(
                 )
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier    = Modifier.size(20.dp),
-                        color       = Cream,
-                        strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Cream, strokeWidth = 2.dp)
                 } else {
-                    Text(
-                        text       = "Buat Akun →",
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = DmSansFamily
-                    )
+                    Text(text = "Buat Akun →", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily)
                 }
             }
 
-            // Link balik ke login
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -314,12 +268,7 @@ fun RegisterScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Sudah punya akun?",
-                    fontSize = 12.sp,
-                    color = Charcoal60,
-                    fontFamily = DmSansFamily
-                )
+                Text(text = "Sudah punya akun?", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "Masuk",

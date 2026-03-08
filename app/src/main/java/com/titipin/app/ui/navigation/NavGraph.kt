@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,20 +34,18 @@ data class BottomNavItem(
     val icon: ImageVector,
 )
 
-// Emoji untuk tiap tab — sesuai design system Titip.in
-// Map dari route ke emoji
 val bottomNavEmojis = mapOf(
     Routes.HOME     to "🏠",
-    Routes.JASTIP   to "📦",
+    Routes.JASTIP   to "??",
     Routes.PRELOVED to "🛍️",
     Routes.PROFILE  to "👤",
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem(route = Routes.HOME,     label = "Home",    icon = Icons.Rounded.Home),
-    BottomNavItem(route = Routes.JASTIP,   label = "Jastip",  icon = Icons.Rounded.ShoppingBag),
-    BottomNavItem(route = Routes.PRELOVED, label = "Preloved",icon = Icons.Rounded.Storefront),
-    BottomNavItem(route = Routes.PROFILE,  label = "Profil",  icon = Icons.Rounded.Person),
+    BottomNavItem(route = Routes.HOME,     label = "Home",     icon = Icons.Rounded.Home),
+    BottomNavItem(route = Routes.JASTIP,   label = "Jastip",   icon = Icons.Rounded.ShoppingBag),
+    BottomNavItem(route = Routes.PRELOVED, label = "Preloved", icon = Icons.Rounded.Storefront),
+    BottomNavItem(route = Routes.PROFILE,  label = "Profil",   icon = Icons.Rounded.Person),
 )
 
 val routesWithoutBottomNav = listOf(Routes.LOGIN, Routes.REGISTER)
@@ -59,34 +56,23 @@ fun TitipinNavGraph() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Cek apakah current destination (atau parent-nya) adalah auth screen
-    // Pakai hierarchy biar lebih akurat — tidak terpengaruh animasi transisi
-    // Ini bedanya dari cek currentRoute langsung yang bisa "kedip" saat transisi
+    // pakai hierarchy agar tidak "kedip" saat animasi transisi
     val showBottomNav = navBackStackEntry?.destination?.hierarchy?.none { dest ->
         dest.route in routesWithoutBottomNav
     } ?: false
 
-    // Box = FrameLayout — dipakai biar bottom nav bisa "float" di atas konten
     Box(modifier = Modifier.fillMaxSize()) {
-
         NavHost(
             navController    = navController,
             startDestination = Routes.LOGIN,
             modifier = Modifier
                 .fillMaxSize()
-                .then(
-                    if (showBottomNav) Modifier.padding(bottom = 90.dp)
-                    else Modifier
-                ),
-            // Animasi default untuk semua screen transitions
-            // fadeIn/fadeOut = smooth, tidak terlalu "ramai"
-            // duration 300ms = standar Material3
-            enterTransition  = { fadeIn(animationSpec = tween(300)) },
-            exitTransition   = { fadeOut(animationSpec = tween(300)) },
+                .then(if (showBottomNav) Modifier.padding(bottom = 90.dp) else Modifier),
+            enterTransition     = { fadeIn(animationSpec = tween(300)) },
+            exitTransition      = { fadeOut(animationSpec = tween(300)) },
             popEnterTransition  = { fadeIn(animationSpec = tween(300)) },
             popExitTransition   = { fadeOut(animationSpec = tween(300)) }
         ) {
-            // ── AUTH ──────────────────────────────────────────────
             composable(Routes.LOGIN) {
                 LoginScreen(
                     onNavigateToRegister = { navController.navigate(Routes.REGISTER) },
@@ -108,14 +94,12 @@ fun TitipinNavGraph() {
                 )
             }
 
-            // ── MAIN SCREENS ──────────────────────────────────────
             composable(Routes.HOME)     { HomeScreen() }
             composable(Routes.JASTIP)   { JastipScreen() }
             composable(Routes.PRELOVED) { PrelovedScreen() }
             composable(Routes.PROFILE)  { ProfileScreen() }
         }
 
-        // Floating bottom nav — posisinya di atas konten, nempel ke bawah Box
         if (showBottomNav) {
             TitipinBottomNav(
                 currentRoute = currentRoute,
@@ -129,10 +113,10 @@ fun TitipinNavGraph() {
                     }
                 },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)  // posisi tengah-bawah dari Box
-                    .padding(horizontal = 16.dp)    // jarak dari tepi kiri-kanan layar
-                    .padding(bottom = 16.dp)        // jarak dari bawah layar
-                    .navigationBarsPadding()        // handle gesture nav bar (Android 10+)
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+                    .navigationBarsPadding()
             )
         }
     }
@@ -146,28 +130,25 @@ fun TitipinBottomNav(
 ) {
     NavigationBar(
         modifier = modifier
-            // shadow dulu SEBELUM clip — urutan modifier penting di Compose!
-            // Kalau clip dulu, shadow-nya ikut terpotong
+            // shadow sebelum clip — agar shadow tidak ikut terpotong
             .shadow(
                 elevation    = 16.dp,
                 shape        = RoundedCornerShape(24.dp),
                 ambientColor = Charcoal.copy(alpha = 0.15f),
                 spotColor    = Charcoal.copy(alpha = 0.3f)
             )
-            .clip(RoundedCornerShape(24.dp)),   // rounded corners
+            .clip(RoundedCornerShape(24.dp)),
         containerColor = Charcoal,
-        tonalElevation = 0.dp   // matiin tonal elevation default Material3
+        tonalElevation = 0.dp
     ) {
         bottomNavItems.forEach { item ->
             val isSelected = currentRoute == item.route
 
             NavigationBarItem(
-                selected       = isSelected,
-                alwaysShowLabel = true,   // selalu tampilkan label, bukan cuma waktu aktif
-                onClick        = { onNavigate(item.route) },
+                selected        = isSelected,
+                alwaysShowLabel = true,
+                onClick         = { onNavigate(item.route) },
                 icon = {
-                    // Pakai Text emoji sebagai icon — sesuai design system
-                    // fontSize lebih besar kalau selected biar ada emphasis
                     Text(
                         text     = bottomNavEmojis[item.route] ?: "●",
                         fontSize = if (isSelected) 20.sp else 18.sp
