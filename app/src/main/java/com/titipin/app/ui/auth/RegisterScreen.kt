@@ -1,7 +1,8 @@
 package com.titipin.app.ui.auth
 
-
 import androidx.compose.foundation.background
+import androidx.compose.runtime.collectAsState
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +31,8 @@ import com.titipin.app.ui.theme.*
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit = {},
-    onRegisterSuccess: () -> Unit = {}
+    onRegisterSuccess: () -> Unit = {},
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
     // ── STATE ──────────────────────────────────────────────────────
     var nama by remember { mutableStateOf("") }
@@ -40,14 +42,29 @@ fun RegisterScreen(
     var konfirmasiPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var konfirmasiVisible by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
+
+    val authState by viewModel.authState.collectAsState()
+    val isLoading = authState is AuthState.Loading
+
+    androidx.compose.runtime.LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> {
+                viewModel.resetState() // reset DULU biar tidak double trigger
+                onRegisterSuccess()    // baru navigate
+            }
+            else -> Unit
+        }
+    }
 
     // Validasi password match — computed value, bukan state terpisah
     // Di Compose, kita bisa hitung nilai dari state lain secara langsung
     // Ga perlu TextWatcher seperti di XML
-    val passwordMatch = konfirmasiPassword.isEmpty() || password == konfirmasiPassword
+    val passwordMatch = password == konfirmasiPassword
+    // formValid: semua field harus diisi + password min 8 + konfirmasi harus match
+    // konfirmasiPassword.isNotEmpty() wajib — biar tombol disable kalau belum diisi
     val formValid = nama.isNotEmpty() && email.isNotEmpty() &&
-            noWa.isNotEmpty() && password.length >= 8 && passwordMatch
+            noWa.isNotEmpty() && password.length >= 8 &&
+            konfirmasiPassword.isNotEmpty() && passwordMatch
 
     Column(
         modifier = Modifier
@@ -242,13 +259,24 @@ fun RegisterScreen(
                 }
             }
 
+            // Error dari API
+            if (authState is AuthState.Error) {
+                Text(
+                    text = "⚠ ${(authState as? AuthState.Error)?.message ?: ""}",
+                    fontSize = 12.sp,
+                    color = Terracotta,
+                    fontFamily = DmSansFamily,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(Spacing.xs))
 
             // Tombol daftar
             Button(
                 onClick = {
                     // Nanti panggil ViewModel.register() di sini
-                    onRegisterSuccess()
+                    viewModel.register(nama, email, password, noWa)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

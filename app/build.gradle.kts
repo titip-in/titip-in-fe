@@ -26,7 +26,7 @@ android {
             // Ganti URL ini nanti waktu BE udah deploy ke EC2
             // Selama development lokal, pakai IP komputer temenmu
             // misal: "http://192.168.1.10:8080/"
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
+            buildConfigField("String", "BASE_URL", "\"http://192.168.1.9:8080/\"")
             isDebuggable = true
         }
         release {

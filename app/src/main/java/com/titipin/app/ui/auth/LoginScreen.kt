@@ -2,6 +2,8 @@ package com.titipin.app.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.collectAsState
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,20 +34,35 @@ import com.titipin.app.ui.theme.*
 @Composable
 fun LoginScreen(
     onNavigateToRegister: () -> Unit = {},
-    onLoginSuccess: () -> Unit = {}
+    onLoginSuccess: () -> Unit = {},
+    // hiltViewModel() = cara Compose dapat ViewModel yang di-inject Hilt
+    // Ini pengganti ViewModelProvider di XML
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
     // ── STATE ──────────────────────────────────────────────────────
-    // Ini pengganti getText() dari EditText di XML
-    // Setiap kali user ketik, variabel ini otomatis update → UI ikut update
-
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-
-    // State untuk show/hide password (icon mata)
     var passwordVisible by remember { mutableStateOf(false) }
 
-    // State loading — nanti dipake waktu hit API
-    var isLoading by remember { mutableStateOf(false) }
+    // Observe authState dari ViewModel
+    // collectAsState() = konversi Flow → State yang bisa dipakai di Compose
+    // Setiap kali ViewModel update state, UI otomatis re-render
+    val authState by viewModel.authState.collectAsState()
+    val isLoading = authState is AuthState.Loading
+
+    // Kalau sukses → navigate ke home
+    // LaunchedEffect = jalankan efek samping (side effect) saat key berubah
+    // Ini cara Compose handle "aksi sekali" seperti navigasi
+    // Di XML dulu: observer.observe(viewLifecycleOwner) { if (it) startActivity() }
+    androidx.compose.runtime.LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> {
+                viewModel.resetState()
+                onLoginSuccess()
+            }
+            else -> Unit
+        }
+    }
 
     // ── UI ─────────────────────────────────────────────────────────
     Column(
@@ -180,15 +197,25 @@ fun LoginScreen(
                 }
             )
 
+            // Error message dari API
+            if (authState is AuthState.Error) {
+                Text(
+                    text = "⚠ ${(authState as AuthState.Error).message}",
+                    fontSize = 12.sp,
+                    color = Terracotta,
+                    fontFamily = DmSansFamily,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(Spacing.xs))
 
             // ── TOMBOL MASUK ──────────────────────────────────────
             // Button di Compose — ga perlu xml drawable untuk background
             Button(
                 onClick = {
-                    // Nanti di sini kita panggil ViewModel untuk hit API
-                    // Sekarang langsung navigate ke home dulu (dummy)
-                    onLoginSuccess()
+                    // Panggil ViewModel — dia yang urus hit API + simpan token
+                    viewModel.login(email, password)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
