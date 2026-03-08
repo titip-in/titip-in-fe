@@ -4,44 +4,33 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.titipin.app.navigation.TitipinNavGraph
 import com.titipin.app.ui.theme.TitipinTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+// @AndroidEntryPoint → wajib ada di semua Activity yang pakai Hilt
+// Ini kasih tau Hilt bahwa class ini butuh dependency injection
+// Nanti ViewModel, Repository, dll bisa di-inject otomatis
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // enableEdgeToEdge = konten melebar sampai ke balik status bar & nav bar
+        // Bikin tampilan lebih immersive, sesuai design system kita
         enableEdgeToEdge()
+
+        // setContent = pengganti setContentView(R.layout.activity_main)
+        // Semua UI Compose hidup di dalam block ini
         setContent {
             TitipinTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                // TitipinNavGraph mengurus semua navigasi
+                // Dari sini satu baris ini, seluruh app sudah jalan
+                TitipinNavGraph()
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    TitipinTheme {
-        Greeting("Android")
-    }
-}
+// Catatan: Greeting() dan GreetingPreview() yang default tadi
+// udah dihapus — itu cuma boilerplate dari Android Studio

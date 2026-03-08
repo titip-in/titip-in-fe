@@ -1,58 +1,70 @@
 package com.titipin.app.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
+// ── COLOR SCHEME ──────────────────────────────────────────────────
+// Titip.in hanya punya light theme untuk MVP
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary             = md_primary,
+    onPrimary           = md_onPrimary,
+    primaryContainer    = md_primaryContainer,
+    onPrimaryContainer  = md_onPrimaryContainer,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondary           = md_secondary,
+    onSecondary         = md_onSecondary,
+    secondaryContainer  = md_secondaryContainer,
+    onSecondaryContainer= md_onSecondaryContainer,
+
+    tertiary            = md_tertiary,
+    onTertiary          = md_onTertiary,
+    tertiaryContainer   = md_tertiaryContainer,
+    onTertiaryContainer = md_onTertiaryContainer,
+
+    background          = md_background,
+    onBackground        = md_onBackground,
+    surface             = md_surface,
+    onSurface           = md_onSurface,
+    surfaceVariant      = md_surfaceVariant,
+    onSurfaceVariant    = md_onSurfaceVariant,
+    outline             = md_outline,
+    outlineVariant      = md_outlineVariant,
 )
 
+// ── THEME COMPOSABLE ──────────────────────────────────────────────
 @Composable
 fun TitipinTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Dark theme dimatiin dulu untuk MVP
+    // bisa dihidupkan lagi nanti dengan darkColorScheme
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
+        colorScheme = LightColorScheme,
+        typography  = TitipinTypography,
+        content     = content
     )
 }
+
+// ── USAGE GUIDE ───────────────────────────────────────────────────
+// Di MainActivity.kt:
+//
+//   setContent {
+//       TitipinTheme {
+//           // semua screen kamu di sini
+//       }
+//   }
+//
+// Di composable manapun, akses via:
+//   MaterialTheme.colorScheme.primary     → Terracotta
+//   MaterialTheme.colorScheme.secondary   → Sage
+//   MaterialTheme.colorScheme.background  → Cream
+//   MaterialTheme.typography.displayLarge → Fraunces Italic
+//   MaterialTheme.typography.bodyLarge    → DM Sans Regular
+//
+// Untuk warna custom (yang tidak ada di M3 roles), import langsung:
+//   import com.titipin.app.ui.theme.Terracotta
+//   import com.titipin.app.ui.theme.Spacing
+//   import com.titipin.app.ui.theme.Radius
