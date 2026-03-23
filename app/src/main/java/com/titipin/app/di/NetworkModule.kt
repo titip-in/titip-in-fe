@@ -2,6 +2,7 @@ package com.titipin.app.di
 
 import com.titipin.app.BuildConfig
 import com.titipin.app.data.remote.ApiService
+import com.titipin.app.data.remote.AuthInterceptor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,15 +20,24 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(
+        // Hilt otomatis inject AuthInterceptor karena kita @Inject constructor-nya
+        // Urutan interceptor penting:
+        // 1. AuthInterceptor — tambah token DULU
+        // 2. LoggingInterceptor — log request SETELAH token ditambah
+        //    (biar kita bisa lihat header Authorization di Logcat)
+        authInterceptor: AuthInterceptor
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG)
                 HttpLoggingInterceptor.Level.BODY
             else
                 HttpLoggingInterceptor.Level.NONE
         }
+
         return OkHttpClient.Builder()
-            .addInterceptor(logging)
+            .addInterceptor(authInterceptor) // ← auth dulu
+            .addInterceptor(logging)         // ← baru logging
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -37,7 +47,6 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        // debug: 10.0.2.2:8080 (localhost emulator) | release: api.titip.in/v1/
         return Retrofit.Builder()
             .baseUrl(BuildConfig.BASE_URL)
             .client(okHttpClient)
