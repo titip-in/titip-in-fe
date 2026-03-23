@@ -98,7 +98,12 @@ fun TitipinNavGraph() {
                 )
             }
 
-            composable(Routes.HOME)     { HomeScreen() }
+            composable(Routes.HOME) {
+                HomeScreen(
+                    onNavigateToJastip   = { navController.navigate(Routes.JASTIP) },
+                    onNavigateToPreloved = { navController.navigate(Routes.PRELOVED) }
+                )
+            }
             composable(Routes.PRELOVED) {
                 PrelovedScreen(
                     onNavigateToDetail = { id ->
@@ -106,7 +111,15 @@ fun TitipinNavGraph() {
                     }
                 )
             }
-            composable(Routes.PROFILE)  { ProfileScreen() }
+            composable(Routes.PROFILE) {
+                ProfileScreen(
+                    onLogout = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
 
             // JastipScreen sekarang handle bottom sheet sendiri di dalamnya
             composable(Routes.JASTIP) {

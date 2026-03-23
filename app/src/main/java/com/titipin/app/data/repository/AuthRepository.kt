@@ -72,6 +72,22 @@ class AuthRepository @Inject constructor(
         dataStore.clearAuthData()
     }
 
+    // ── GET ME — ambil profil user yang sedang login ───────────────
+    suspend fun getMe(): Result<UserData> {
+        return try {
+            val response = apiService.getMe()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()!!.data!!)
+            } else {
+                Result.Error(response.body()?.error?.message ?: "Gagal memuat profil")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+
+
     // "085750..." → "6285750..."
     private fun formatWaNumber(input: String): String {
         val cleaned = input.trim().replace(" ", "").replace("-", "")
