@@ -1,7 +1,6 @@
 package com.titipin.app.ui.jastip
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,11 +20,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
+import com.titipin.app.shared.formatDeadlineDisplay
+import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
-import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -248,11 +249,12 @@ fun JastipRequestContent() {
 @Composable
 fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
     val context = LocalContext.current
-    val deadlineTime = jastip.deadline.substringAfter("T").take(5)
+    val deadlineShort = formatDeadlineDisplay(jastip.deadline, includeYear = false)
+    val deadlineFull = formatDeadlineDisplay(jastip.deadline, includeYear = true)
+    val createdAtLabel = timeAgo(jastip.createdAt)
     // Inisial dari userId — nanti ganti nama user kalau BE udah return user object
     val initials = jastip.user.name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
-    val name = jastip.user.name.trim()
-    val waNumber = jastip.user.waNumber
+    val name = jastip.user.name
 
     Card(
         modifier  = Modifier
@@ -288,6 +290,7 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
+                        // Nanti ganti dengan nama user dari BE
                         text = name,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -301,21 +304,39 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
                         fontFamily = DmSansFamily
                     )
                 }
-                // Status badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(if (jastip.status == "ACTIVE") SagePale else CreamDark)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (jastip.status == "ACTIVE") "AKTIF" else "TUTUP",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = if (jastip.status == "ACTIVE") Sage else Charcoal30,
-                        fontFamily = DmSansFamily
-                    )
+                Column(horizontalAlignment = Alignment.End) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.full))
+                            .background(CreamDark)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = createdAtLabel,
+                            fontSize = 9.sp,
+                            color = Charcoal60,
+                            fontFamily = DmSansFamily,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    // Status badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.full))
+                            .background(if (jastip.status == "ACTIVE") SagePale else CreamDark)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (jastip.status == "ACTIVE") "AKTIF" else "TUTUP",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = if (jastip.status == "ACTIVE") Sage else Charcoal30,
+                            fontFamily = DmSansFamily
+                        )
+                    }
                 }
             }
 
@@ -358,7 +379,7 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
 
             // ── Chips info ────────────────────────────────────────
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                InfoChip("⏰ $deadlineTime")
+                InfoChip("⏰ $deadlineShort")
                 if (!jastip.notes.isNullOrEmpty()) InfoChip("📝 Ada catatan")
             }
 
@@ -376,20 +397,20 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Deadline $deadlineTime",
+                    text = "Deadline $deadlineFull",
                     fontSize = 11.sp,
                     color = Charcoal60,
                     fontFamily = DmSansFamily
                 )
 
                 // Tombol WhatsApp
+                // TODO: ganti nomor WA dengan data user dari BE
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radius.full))
                         .background(Terracotta)
                         .clickable {
-                            val intent = Intent(Intent.ACTION_VIEW,
-                                "https://wa.me/${waNumber}".toUri())
+                            val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/${jastip.user.waNumber}".toUri())
                             context.startActivity(intent)
                         }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -410,6 +431,7 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
         }
     }
 }
+
 
 // ── INFO CHIP ─────────────────────────────────────────────────────
 @Composable

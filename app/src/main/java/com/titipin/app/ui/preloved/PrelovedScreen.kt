@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.PrelovedDto
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 

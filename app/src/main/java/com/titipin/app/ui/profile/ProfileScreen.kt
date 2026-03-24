@@ -1,6 +1,7 @@
 package com.titipin.app.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -210,12 +211,13 @@ fun ProfileScreen(
                         ProfileMenuItem(emoji = "⚙️", label = "Pengaturan",
                             subtitle = "Akun, notifikasi, privasi", bgColor = CreamDark)
 
-                        // Keluar
-                        Spacer(Modifier.height(4.dp))
+                        // Keluar — card dengan border Terracotta
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(Radius.md))
+                                .background(TerracottaPale.copy(alpha = 0.6f))
+                                .border(1.dp, Terracotta.copy(alpha = 0.4f), RoundedCornerShape(Radius.md))
                                 .clickable {
                                     viewModel.logout()
                                     onLogout()

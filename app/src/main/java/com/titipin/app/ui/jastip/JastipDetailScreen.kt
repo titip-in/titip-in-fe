@@ -1,7 +1,6 @@
 package com.titipin.app.ui.jastip
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.titipin.app.shared.formatDateDisplay
+import com.titipin.app.shared.formatTimeDisplay
 import com.titipin.app.ui.theme.*
 import androidx.core.net.toUri
 
@@ -79,8 +80,8 @@ fun JastipDetailScreen(
             }
             is JastipActionState.Success -> {
                 val jastip = state.data ?: return@Column
-                val deadlineTime = jastip.deadline.substringAfter("T").take(5)
-                val deadlineDate = jastip.deadline.substringBefore("T")
+                val deadlineTime = formatTimeDisplay(jastip.deadline)
+                val deadlineDate = formatDateDisplay(jastip.deadline, includeYear = true)
                 val initials = jastip.user.name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
 
                 // Scrollable content

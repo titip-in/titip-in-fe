@@ -12,21 +12,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.titipin.app.data.model.JastipDto
+import com.titipin.app.data.model.PrelovedDto
+import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
 
-@Preview(showBackground = true)
 @Composable
 fun HomeScreen(
     onNavigateToJastip: () -> Unit = {},
     onNavigateToPreloved: () -> Unit = {},
-    userName: String = "",
-    userInitials: String = ""
+    viewModel: HomeViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -44,34 +51,30 @@ fun HomeScreen(
         ) {
             Column {
                 Text(
-                    text = "Selamat datang,",
+                    "Selamat datang,",
                     fontSize = 11.sp, color = Charcoal60,
                     fontWeight = FontWeight.Medium, fontFamily = DmSansFamily,
                     letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = if (userName.isNotEmpty()) "${userName.trim().split(" ").first()} 👋"
+                    text = if (uiState.userName.isNotEmpty())
+                        "${uiState.userName.trim().split(" ").first()} 👋"
                     else "Titip.in 👋",
                     fontSize = 20.sp, fontWeight = FontWeight.Medium,
                     color = Charcoal, fontFamily = FrauncesFamily
                 )
             }
-            // Avatar inisial
             Box(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(
-                        androidx.compose.ui.graphics.Brush.linearGradient(
-                            listOf(Sage, Terracotta)
-                        )
-                    ),
+                    .background(Brush.linearGradient(listOf(Sage, Terracotta))),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = userInitials.ifEmpty { "T" },
+                    uiState.userInitials.ifEmpty { "T" },
                     fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    color = androidx.compose.ui.graphics.Color.White, fontFamily = DmSansFamily
+                    color = Color.White, fontFamily = DmSansFamily
                 )
             }
         }
@@ -86,14 +89,8 @@ fun HomeScreen(
                 .padding(horizontal = Spacing.md, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("🔍", fontSize = 14.sp,
-                modifier = Modifier.padding(end = 8.dp),
-                color = Charcoal30
-            )
-            Text(
-                text = "Cari jastip atau barang...",
-                fontSize = 13.sp, color = Charcoal30, fontFamily = DmSansFamily
-            )
+            Text("🔍", fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
+            Text("Cari jastip atau barang...", fontSize = 13.sp, color = Charcoal30, fontFamily = DmSansFamily)
         }
 
         Spacer(Modifier.height(Spacing.md))
@@ -103,7 +100,7 @@ fun HomeScreen(
             modifier = Modifier.padding(horizontal = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ── Card 1: Jastip Aktif — full width Charcoal ────────
+            // Card 1: Jastip Aktif
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,7 +109,6 @@ fun HomeScreen(
                     .clickable { onNavigateToJastip() }
                     .padding(Spacing.md)
             ) {
-                // Blob dekorasi
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -122,18 +118,13 @@ fun HomeScreen(
                         .align(Alignment.TopEnd)
                 )
                 Column {
-                    Text(
-                        text = "● TERSEDIA SEKARANG",
-                        fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
-                        color = Sage, fontFamily = DmSansFamily, letterSpacing = 1.5.sp
-                    )
+                    Text("● TERSEDIA SEKARANG", fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold, color = Sage,
+                        fontFamily = DmSansFamily, letterSpacing = 1.5.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Jastip Aktif\ndi Malang",
-                        fontSize = 20.sp, fontWeight = FontWeight.Normal,
+                    Text("Jastip Aktif\ndi Malang", fontSize = 20.sp,
                         color = Cream, fontFamily = FrauncesFamily,
-                        fontStyle = FontStyle.Italic, lineHeight = 24.sp
-                    )
+                        fontStyle = FontStyle.Italic, lineHeight = 24.sp)
                     Spacer(Modifier.height(Spacing.sm))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -141,37 +132,33 @@ fun HomeScreen(
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Column {
+                            // Pakai total semua jastip yang di-fetch
                             Text(
-                                text = "—",
+                                text = if (uiState.allJastip.isNotEmpty())
+                                    "${uiState.allJastip.size}" else "—",
                                 fontSize = 32.sp, fontWeight = FontWeight.Light,
                                 color = Cream, fontFamily = FrauncesFamily, lineHeight = 36.sp
                             )
-                            Text(
-                                text = "jastip tersedia",
-                                fontSize = 10.sp, color = Cream.copy(alpha = 0.5f),
-                                fontFamily = DmSansFamily
-                            )
+                            Text("jastip tersedia", fontSize = 10.sp,
+                                color = Cream.copy(alpha = 0.5f), fontFamily = DmSansFamily)
                         }
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(Radius.full))
                                 .background(Sage)
+                                .clickable { onNavigateToJastip() }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
-                            Text(
-                                "Lihat Semua →",
-                                fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                                color = androidx.compose.ui.graphics.Color.White,
-                                fontFamily = DmSansFamily
-                            )
+                            Text("Lihat Semua →", fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White, fontFamily = DmSansFamily)
                         }
                     }
                 }
             }
 
-            // ── Card 2 + 3: Preloved & Request — 2 kolom ─────────
+            // Card 2 + 3
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Preloved Terbaru — Terracotta
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -180,40 +167,28 @@ fun HomeScreen(
                         .clickable { onNavigateToPreloved() }
                         .padding(Spacing.md)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text("👗", fontSize = 22.sp)
                         Spacer(Modifier.height(Spacing.sm))
-                        Text(
-                            text = "Preloved\nTerbaru",
-                            fontSize = 15.sp, fontWeight = FontWeight.Normal,
-                            color = androidx.compose.ui.graphics.Color.White,
-                            fontFamily = FrauncesFamily, lineHeight = 20.sp
-                        )
+                        Text("Preloved\nTerbaru", fontSize = 15.sp,
+                            color = Color.White, fontFamily = FrauncesFamily, lineHeight = 20.sp)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "— barang aktif",
+                            text = if (uiState.allPreloved.isNotEmpty())
+                                "${uiState.allPreloved.size} barang aktif" else "— barang aktif",
                             fontSize = 10.sp,
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
-                            fontFamily = DmSansFamily
+                            color = Color.White.copy(alpha = 0.7f), fontFamily = DmSansFamily
                         )
                         Spacer(Modifier.height(Spacing.sm))
                         Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.2f))
+                            modifier = Modifier.size(28.dp).clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f))
                                 .align(Alignment.End),
                             contentAlignment = Alignment.Center
-                        ) {
-                            Text("→", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color.White)
-                        }
+                        ) { Text("→", fontSize = 12.sp, color = Color.White) }
                     }
                 }
 
-                // Request Jastip — SagePale
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -222,38 +197,25 @@ fun HomeScreen(
                         .clickable { onNavigateToJastip() }
                         .padding(Spacing.md)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text("📍", fontSize = 22.sp)
                         Spacer(Modifier.height(Spacing.sm))
-                        Text(
-                            text = "Request\nJastip",
-                            fontSize = 15.sp, fontWeight = FontWeight.Normal,
-                            color = Charcoal, fontFamily = FrauncesFamily, lineHeight = 20.sp
-                        )
+                        Text("Request\nJastip", fontSize = 15.sp,
+                            color = Charcoal, fontFamily = FrauncesFamily, lineHeight = 20.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "— request terbuka",
-                            fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
-                        )
+                        Text("— request terbuka", fontSize = 10.sp,
+                            color = Charcoal60, fontFamily = DmSansFamily)
                         Spacer(Modifier.height(Spacing.sm))
                         Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Sage)
-                                .align(Alignment.End),
+                            modifier = Modifier.size(28.dp).clip(CircleShape)
+                                .background(Sage).align(Alignment.End),
                             contentAlignment = Alignment.Center
-                        ) {
-                            Text("→", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color.White)
-                        }
+                        ) { Text("→", fontSize = 12.sp, color = Color.White) }
                     }
                 }
             }
 
-            // ── Card 4: Featured Listing — GoldPale ───────────────
+            // Card 4: Featured
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -265,24 +227,17 @@ fun HomeScreen(
             ) {
                 Text("⭐", fontSize = 24.sp)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Featured Listing",
-                        fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                        color = Charcoal, fontFamily = FrauncesFamily
-                    )
-                    Text(
-                        "Promosikan jastipmu",
-                        fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
-                    )
+                    Text("Featured Listing", fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium, color = Charcoal, fontFamily = FrauncesFamily)
+                    Text("Promosikan jastipmu", fontSize = 10.sp,
+                        color = Charcoal60, fontFamily = DmSansFamily)
                 }
                 Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(Gold)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(Radius.full))
+                        .background(Gold).padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text("Baru", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = androidx.compose.ui.graphics.Color.White, fontFamily = DmSansFamily)
+                        color = Color.White, fontFamily = DmSansFamily)
                 }
             }
         }
@@ -290,44 +245,58 @@ fun HomeScreen(
         Spacer(Modifier.height(Spacing.md))
 
         // ── AKTIVITAS TERBARU ─────────────────────────────────────
-        Text(
-            text = "AKTIVITAS TERBARU",
-            fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.5.sp, color = Charcoal60, fontFamily = DmSansFamily,
-            modifier = Modifier.padding(horizontal = Spacing.lg)
-        )
+        Text("AKTIVITAS TERBARU", fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+            color = Charcoal60, fontFamily = DmSansFamily,
+            modifier = Modifier.padding(horizontal = Spacing.lg))
 
         Spacer(Modifier.height(8.dp))
 
-        // Activity items — static untuk sekarang, nanti bisa dari API
         Column(
             modifier = Modifier.padding(horizontal = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            ActivityItem(
-                dotColor = Sage,
-                title = "Jastip aktif di sekitarmu",
-                subtitle = "Tap untuk lihat semua jastip",
-                time = "Sekarang",
-                onClick = onNavigateToJastip
-            )
-            ActivityItem(
-                dotColor = Terracotta,
-                title = "Barang preloved terbaru",
-                subtitle = "Preloved · Lihat semua barang",
-                time = "Sekarang",
-                onClick = onNavigateToPreloved
-            )
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                }
+            } else {
+                uiState.recentJastip.forEach { jastip ->
+                    ActivityItem(
+                        dotColor = Sage,
+                        title    = "${jastip.fromLocation} → ${jastip.toLocation}",
+                        subtitle = jastip.user.name.trim(),
+                        time     = timeAgo(jastip.createdAt),
+                        onClick  = onNavigateToJastip
+                    )
+                }
+                uiState.recentPreloved.forEach { preloved ->
+                    ActivityItem(
+                        dotColor = Terracotta,
+                        title    = preloved.title,
+                        subtitle = "Preloved · ${preloved.formattedPrice()}",
+                        time     = timeAgo(preloved.createdAt),
+                        onClick  = onNavigateToPreloved
+                    )
+                }
+                if (uiState.recentJastip.isEmpty() && uiState.recentPreloved.isEmpty()) {
+                    ActivityItem(
+                        dotColor = Sage,
+                        title    = "Belum ada aktivitas terbaru",
+                        subtitle = "Jadilah yang pertama buka jastip!",
+                        time     = ""
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(Spacing.xl))
     }
 }
 
-// ── ACTIVITY ITEM ─────────────────────────────────────────────────
 @Composable
 fun ActivityItem(
-    dotColor: androidx.compose.ui.graphics.Color,
+    dotColor: Color,
     title: String,
     subtitle: String,
     time: String,
@@ -337,23 +306,21 @@ fun ActivityItem(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.md))
-            .background(androidx.compose.ui.graphics.Color.White)
+            .background(Color.White)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-                color = Charcoal, fontFamily = DmSansFamily)
+                color = Charcoal, fontFamily = DmSansFamily,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
         }
-        Text(time, fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily)
+        if (time.isNotEmpty()) {
+            Text(time, fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily)
+        }
     }
 }

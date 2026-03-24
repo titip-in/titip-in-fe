@@ -1,6 +1,9 @@
 package com.titipin.app.navigation
 
 object Routes {
+    // Splash
+    const val SPLASH   = "splash"
+
     // Auth
     const val LOGIN    = "login"
     const val REGISTER = "register"

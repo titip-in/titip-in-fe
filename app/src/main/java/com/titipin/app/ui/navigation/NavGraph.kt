@@ -28,6 +28,7 @@ import com.titipin.app.ui.jastip.JastipScreen
 import com.titipin.app.ui.preloved.PrelovedDetailScreen
 import com.titipin.app.ui.preloved.PrelovedScreen
 import com.titipin.app.ui.profile.ProfileScreen
+import com.titipin.app.ui.splash.SplashScreen
 import com.titipin.app.ui.theme.*
 
 data class BottomNavItem(val route: String, val label: String, val icon: ImageVector)
@@ -49,6 +50,7 @@ val bottomNavItems = listOf(
 // Form screens dihapus dari sini — sekarang pakai ModalBottomSheet
 // Bottom nav disembunyikan hanya di auth screens dan detail screens
 val routesWithoutBottomNav = listOf(
+    Routes.SPLASH,
     Routes.LOGIN,
     Routes.REGISTER,
     Routes.JASTIP_DETAIL_PATTERN,
@@ -68,7 +70,7 @@ fun TitipinNavGraph() {
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController    = navController,
-            startDestination = Routes.LOGIN,
+            startDestination = Routes.SPLASH,
             modifier = Modifier
                 .fillMaxSize()
                 .then(if (showBottomNav) Modifier.padding(bottom = 90.dp) else Modifier),
@@ -77,6 +79,21 @@ fun TitipinNavGraph() {
             popEnterTransition  = { fadeIn(animationSpec = tween(300)) },
             popExitTransition   = { fadeOut(animationSpec = tween(300)) }
         ) {
+            composable(Routes.SPLASH) {
+                SplashScreen(
+                    onNavigateToHome = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             composable(Routes.LOGIN) {
                 LoginScreen(
                     onNavigateToRegister = { navController.navigate(Routes.REGISTER) },
