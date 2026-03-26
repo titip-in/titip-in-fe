@@ -203,8 +203,13 @@ fun HomeScreen(
                         Text("Request\nJastip", fontSize = 15.sp,
                             color = Charcoal, fontFamily = FrauncesFamily, lineHeight = 20.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text("— request terbuka", fontSize = 10.sp,
-                            color = Charcoal60, fontFamily = DmSansFamily)
+                        Text(
+                            text = if (uiState.requestCount > 0)
+                                "${uiState.requestCount} request terbuka"
+                            else "— request terbuka",
+                            fontSize = 10.sp,
+                            color = Charcoal60, fontFamily = DmSansFamily
+                        )
                         Spacer(Modifier.height(Spacing.sm))
                         Box(
                             modifier = Modifier.size(28.dp).clip(CircleShape)

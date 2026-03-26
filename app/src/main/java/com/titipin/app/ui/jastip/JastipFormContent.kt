@@ -2,6 +2,7 @@ package com.titipin.app.ui.jastip
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.titipin.app.ui.auth.TitipinTextField
@@ -32,6 +35,7 @@ fun JastipFormContent(
     val context = LocalContext.current
     val actionState by viewModel.actionState.collectAsState()
     val isLoading = actionState is JastipActionState.Loading
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     var fromLocation by remember { mutableStateOf("") }
     var toLocation   by remember { mutableStateOf("") }
@@ -257,16 +261,7 @@ fun JastipFormContent(
                 .padding(horizontal = Spacing.lg, vertical = Spacing.md)
         ) {
             Button(
-                onClick = {
-                    viewModel.createJastip(
-                        fromLocation = fromLocation,
-                        toLocation   = toLocation,
-                        deadline     = deadlineFormatted,
-                        latitude     = latitudeStr.toDoubleOrNull() ?: -7.9358,
-                        longitude    = longitudeStr.toDoubleOrNull() ?: 112.6139,
-                        notes        = notes.ifEmpty { null }
-                    )
-                },
+                onClick = { if (formValid) showConfirmDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(ComponentSize.buttonHeight),
@@ -293,6 +288,27 @@ fun JastipFormContent(
             }
         }
     }
+
+    // ── Dialog Konfirmasi ─────────────────────────────────────────
+    if (showConfirmDialog) {
+        JastipConfirmDialog(
+            fromLocation = fromLocation.trim(),
+            toLocation   = toLocation.trim(),
+            deadline     = deadlineDisplay,
+            onConfirm    = {
+                showConfirmDialog = false
+                viewModel.createJastip(
+                    fromLocation = fromLocation,
+                    toLocation   = toLocation,
+                    deadline     = deadlineFormatted,
+                    latitude     = latitudeStr.toDoubleOrNull() ?: -7.9358,
+                    longitude    = longitudeStr.toDoubleOrNull() ?: 112.6139,
+                    notes        = notes.ifEmpty { null }
+                )
+            },
+            onDismiss = { showConfirmDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -303,4 +319,109 @@ fun FormLabel(text: String) {
         letterSpacing = 1.sp, color = Charcoal60, fontFamily = DmSansFamily,
         modifier = Modifier.padding(top = Spacing.xs, bottom = 4.dp)
     )
+}
+// ── Dialog Konfirmasi Jastip ───────────────────────────────────────
+@Composable
+fun JastipConfirmDialog(
+    fromLocation: String,
+    toLocation: String,
+    deadline: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Color.White,
+        shape            = RoundedCornerShape(Radius.xl),
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(SagePale),
+                    contentAlignment = Alignment.Center
+                ) { Text("📦", fontSize = 24.sp) }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Posting Jastip?",
+                    fontFamily = FrauncesFamily, fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium, color = Charcoal,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Jastipmu akan langsung terlihat\noleh pengguna di sekitar area kamu.",
+                    fontFamily = DmSansFamily, fontSize = 12.sp,
+                    color = Charcoal60, textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(CreamDark)
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                JastipConfirmRow("Dari",     fromLocation)
+                JastipConfirmRow("Ke",       toLocation)
+                JastipConfirmRow("Deadline", deadline)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick  = onConfirm,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape    = RoundedCornerShape(Radius.full),
+                colors   = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                Text(
+                    "Ya, Posting Sekarang",
+                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp, color = Cream
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick  = onDismiss,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape    = RoundedCornerShape(Radius.full),
+                border   = BorderStroke(1.5.dp, CreamDark)
+            ) {
+                Text(
+                    "Batal, Cek Lagi",
+                    fontFamily = DmSansFamily, fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp, color = Charcoal60
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun JastipConfirmRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label, fontSize = 11.sp, color = Charcoal60,
+            fontFamily = DmSansFamily, modifier = Modifier.weight(0.35f)
+        )
+        Text(
+            value, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            color = Charcoal, fontFamily = DmSansFamily,
+            modifier = Modifier.weight(0.65f),
+            textAlign = TextAlign.End
+        )
+    }
 }

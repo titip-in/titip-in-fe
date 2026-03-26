@@ -1,5 +1,6 @@
 package com.titipin.app.ui.preloved
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,9 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.titipin.app.ui.theme.*
@@ -41,14 +44,14 @@ private val CATEGORIES = listOf(
 )
 
 private val categoryValues = mapOf(
-    "Sepatu"    to "FASHION",
-    "Fashion"   to "FASHION",
-    "Gadget"    to "GADGET",
-    "Buku"      to "BUKU",
+    "Sepatu"     to "SEPATU",
+    "Fashion"    to "FASHION",
+    "Gadget"     to "GADGET",
+    "Buku"       to "BUKU",
     "Elektronik" to "ELEKTRONIK",
-    "Olahraga"  to "OLAHRAGA",
-    "Furniture" to "FURNITURE",
-    "Lainnya"   to "LAINNYA"
+    "Olahraga"   to "OLAHRAGA",
+    "Furniture"  to "FURNITURE",
+    "Lainnya"    to "LAINNYA"
 )
 
 @Composable
@@ -58,6 +61,7 @@ fun PrelovedFormContent(
 ) {
     val actionState by viewModel.actionState.collectAsState()
     val isLoading = actionState is PrelovedActionState.Loading
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     var title        by remember { mutableStateOf("") }
     var description  by remember { mutableStateOf("") }
@@ -286,16 +290,7 @@ fun PrelovedFormContent(
                 .padding(horizontal = Spacing.lg, vertical = Spacing.md)
         ) {
             Button(
-                onClick = {
-                    viewModel.createPreloved(
-                        title       = title,
-                        description = description.ifEmpty { null },
-                        price       = priceStr.toIntOrNull() ?: 0,
-                        category    = categoryValues[selectedCat] ?: selectedCat.uppercase(),
-                        condition   = selectedCond,
-                        imageUrl    = null
-                    )
-                },
+                onClick = { if (formValid) showConfirmDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(ComponentSize.buttonHeight),
@@ -316,6 +311,31 @@ fun PrelovedFormContent(
             }
         }
     }
+
+    // ── Dialog Konfirmasi ─────────────────────────────────────────
+    if (showConfirmDialog) {
+        val priceFormatted = priceStr.toLongOrNull()?.let {
+            "Rp " + it.toString().reversed().chunked(3).joinToString(".").reversed()
+        } ?: priceStr
+        PrelovedConfirmDialog(
+            title     = title.trim(),
+            price     = priceFormatted,
+            condition = selectedCond,
+            category  = selectedCat,
+            onConfirm = {
+                showConfirmDialog = false
+                viewModel.createPreloved(
+                    title       = title,
+                    description = description.ifEmpty { null },
+                    price       = priceStr.toIntOrNull() ?: 0,
+                    category    = categoryValues[selectedCat] ?: selectedCat.uppercase(),
+                    condition   = selectedCond,
+                    imageUrl    = null
+                )
+            },
+            onDismiss = { showConfirmDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -324,4 +344,119 @@ private fun FormFieldLabel(text: String) {
         text, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.8.sp, color = Charcoal60, fontFamily = DmSansFamily
     )
+}
+// ── Dialog Konfirmasi Preloved ─────────────────────────────────────
+@Composable
+fun PrelovedConfirmDialog(
+    title: String,
+    price: String,
+    condition: String,
+    category: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val conditionLabel = when (condition) {
+        "NEW"      -> "Baru"
+        "LIKE_NEW" -> "Seperti Baru"
+        "GOOD"     -> "Bagus"
+        "FAIR"     -> "Layak Pakai"
+        else       -> condition
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Color.White,
+        shape            = RoundedCornerShape(Radius.xl),
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(TerracottaPale),
+                    contentAlignment = Alignment.Center
+                ) { Text("🛍️", fontSize = 24.sp) }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Posting Barang?",
+                    fontFamily = FrauncesFamily, fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium, color = Charcoal,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Barangmu akan langsung muncul\ndi halaman Preloved.",
+                    fontFamily = DmSansFamily, fontSize = 12.sp,
+                    color = Charcoal60, textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(CreamDark)
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PrelovedConfirmRow("Nama",    title)
+                PrelovedConfirmRow("Harga",   price)
+                PrelovedConfirmRow("Kondisi", conditionLabel)
+                PrelovedConfirmRow("Kategori",category)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick  = onConfirm,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape    = RoundedCornerShape(Radius.full),
+                colors   = ButtonDefaults.buttonColors(containerColor = Terracotta)
+            ) {
+                Text(
+                    "Ya, Posting Sekarang",
+                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp, color = Cream
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick  = onDismiss,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape    = RoundedCornerShape(Radius.full),
+                border   = BorderStroke(1.5.dp, CreamDark)
+            ) {
+                Text(
+                    "Batal, Cek Lagi",
+                    fontFamily = DmSansFamily, fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp, color = Charcoal60
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun PrelovedConfirmRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label, fontSize = 11.sp, color = Charcoal60,
+            fontFamily = DmSansFamily, modifier = Modifier.weight(0.35f)
+        )
+        Text(
+            value, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            color = Charcoal, fontFamily = DmSansFamily,
+            modifier = Modifier.weight(0.65f),
+            textAlign = TextAlign.End
+        )
+    }
 }

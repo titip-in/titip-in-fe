@@ -1,5 +1,6 @@
 package com.titipin.app.ui.preloved
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -14,14 +15,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.PrelovedDto
+import com.titipin.app.data.model.WantedDto
 import com.titipin.app.data.model.conditionLabel
+import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
@@ -36,23 +41,59 @@ private val categoryFilters = listOf("Semua", "👟 Sepatu", "👗 Fashion", "�
 @Composable
 fun PrelovedScreen(
     onNavigateToDetail: (String) -> Unit = {},
-    viewModel: PrelovedViewModel = hiltViewModel()
+    viewModel: PrelovedViewModel = hiltViewModel(),
+    wantedViewModel: WantedViewModel = hiltViewModel()
 ) {
     val listState   by viewModel.listState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+
+    val wantedListState   by wantedViewModel.listState.collectAsState()
+    val wantedActionState by wantedViewModel.actionState.collectAsState()
+
     var selectedTab by remember { mutableStateOf(0) }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var showSheet  by remember { mutableStateOf(false) }
-    val scope      = rememberCoroutineScope()
+    // Sheet tab Dijual
+    val prelovedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showPrelovedSheet  by remember { mutableStateOf(false) }
 
+    // Sheet tab Dicari
+    val wantedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showWantedSheet  by remember { mutableStateOf(false) }
+
+    val scope   = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Tutup sheet preloved setelah sukses post
     LaunchedEffect(actionState) {
         if (actionState is PrelovedActionState.Success) {
-            scope.launch { sheetState.hide() }.invokeOnCompletion {
-                showSheet = false
+            scope.launch { prelovedSheetState.hide() }.invokeOnCompletion {
+                showPrelovedSheet = false
                 viewModel.resetActionState()
                 viewModel.loadPrelovedList()
             }
+        }
+    }
+
+    // Handle wanted action states
+    LaunchedEffect(wantedActionState) {
+        when (wantedActionState) {
+            is WantedActionState.Success -> {
+                scope.launch { wantedSheetState.hide() }.invokeOnCompletion {
+                    showWantedSheet = false
+                    wantedViewModel.resetActionState()
+                    wantedViewModel.loadWantedList()
+                }
+            }
+            is WantedActionState.FulfillSuccess -> {
+                // Refresh list + buka WA ke pencari
+                val waNumber = (wantedActionState as WantedActionState.FulfillSuccess)
+                    .result.wantedItem.user.waNumber
+                wantedViewModel.resetActionState()
+                wantedViewModel.loadWantedList()
+                val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/$waNumber".toUri())
+                context.startActivity(intent)
+            }
+            else -> {}
         }
     }
 
@@ -104,12 +145,16 @@ fun PrelovedScreen(
 
             when (selectedTab) {
                 0 -> PrelovedDijualContent(listState, onNavigateToDetail) { viewModel.loadPrelovedList() }
-                1 -> PrelovedDicariContent()
+                1 -> PrelovedDicariContent(
+                    listState   = wantedListState,
+                    actionState = wantedActionState,
+                    onFulfill   = { id -> wantedViewModel.fulfillWanted(id) },
+                    onRetry     = { wantedViewModel.loadWantedList() }
+                )
             }
         }
 
-        // ── FAB — mepet ke bottom nav ─────────────────────────────
-        // 74dp = tinggi bottom nav, 16dp = margin bawah nav, 8dp = gap antara FAB dan nav
+        // ── FAB — sadar tab ───────────────────────────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -118,25 +163,48 @@ fun PrelovedScreen(
                 .shadow(elevation = 8.dp, shape = CircleShape)
                 .clip(CircleShape)
                 .background(Terracotta)
-                .clickable { showSheet = true },
+                .clickable {
+                    if (selectedTab == 0) showPrelovedSheet = true
+                    else showWantedSheet = true
+                },
             contentAlignment = Alignment.Center
         ) {
             Text("＋", color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Light)
         }
     }
 
-    if (showSheet) {
+    // ── BOTTOM SHEET: Jual Preloved ───────────────────────────────
+    if (showPrelovedSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showSheet = false; viewModel.resetActionState() },
-            sheetState = sheetState,
+            onDismissRequest = { showPrelovedSheet = false; viewModel.resetActionState() },
+            sheetState = prelovedSheetState,
             containerColor = Cream
         ) {
             PrelovedFormContent(
                 viewModel = viewModel,
                 onDismiss = {
-                    scope.launch { sheetState.hide() }.invokeOnCompletion {
-                        showSheet = false
+                    scope.launch { prelovedSheetState.hide() }.invokeOnCompletion {
+                        showPrelovedSheet = false
                         viewModel.resetActionState()
+                    }
+                }
+            )
+        }
+    }
+
+    // ── BOTTOM SHEET: Cari Barang ─────────────────────────────────
+    if (showWantedSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showWantedSheet = false; wantedViewModel.resetActionState() },
+            sheetState = wantedSheetState,
+            containerColor = Cream
+        ) {
+            WantedFormContent(
+                viewModel = wantedViewModel,
+                onDismiss = {
+                    scope.launch { wantedSheetState.hide() }.invokeOnCompletion {
+                        showWantedSheet = false
+                        wantedViewModel.resetActionState()
                     }
                 }
             )
@@ -202,7 +270,7 @@ fun PrelovedDijualContent(
 
                 // Filter client-side — mapping pill label -> BE category value
                 val filterMapping = mapOf(
-                    "👟 Sepatu"     to "FASHION",
+                    "👟 Sepatu"     to "SEPATU",
                     "👗 Fashion"    to "FASHION",
                     "📱 Gadget"     to "GADGET",
                     "📚 Buku"       to "BUKU",
@@ -334,23 +402,268 @@ fun PrelovedBentoCard(
 
 // ── TAB DICARI ────────────────────────────────────────────────────
 @Composable
-fun PrelovedDicariContent() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(Spacing.lg)) {
-            Text("🔍", fontSize = 48.sp)
-            Spacer(Modifier.height(12.dp))
-            Text("Fitur Dicari segera hadir", fontFamily = FrauncesFamily, color = Charcoal,
-                fontSize = 18.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(6.dp))
-            Text("Kamu bisa posting barang\nyang kamu cari di sini.",
-                fontFamily = DmSansFamily, color = Charcoal60,
-                fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+fun PrelovedDicariContent(
+    listState: WantedListState,
+    actionState: WantedActionState,
+    onFulfill: (String) -> Unit,
+    onRetry: () -> Unit
+) {
+    var selectedCategory by remember { mutableStateOf("Semua") }
+
+    when (listState) {
+        is WantedListState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
+            }
+        }
+        is WantedListState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(Spacing.lg)
+                ) {
+                    Text("😕", fontSize = 40.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(listState.message, fontFamily = DmSansFamily, color = Charcoal60, fontSize = 13.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = onRetry) {
+                        Text("Coba lagi", color = Terracotta, fontFamily = DmSansFamily)
+                    }
+                }
+            }
+        }
+        is WantedListState.Success -> {
+            val isFulfillLoading = actionState is WantedActionState.Loading
+            // Filter data berdasarkan kategori yang dipilih
+            val filteredData = if (selectedCategory == "Semua") {
+                listState.data
+            } else {
+                // categoryFilters pakai format "👟 Sepatu" — ambil label saja lalu map ke BE value
+                val label     = selectedCategory.substringAfter(" ") // "Sepatu"
+                val filterKey = when (label.uppercase()) {
+                    "SEPATU"     -> "SEPATU"
+                    "FASHION"    -> "FASHION"
+                    "GADGET"     -> "GADGET"
+                    "BUKU"       -> "BUKU"
+                    "ELEKTRONIK" -> "ELEKTRONIK"
+                    "OLAHRAGA"   -> "OLAHRAGA"
+                    "FURNITURE"  -> "FURNITURE"
+                    else         -> label.uppercase()
+                }
+                listState.data.filter { it.category?.uppercase() == filterKey }
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(1),
+                contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = 0.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                // ── Category filter pills ─────────────────────────
+                item(span = { GridItemSpan(1) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        categoryFilters.forEach { cat ->
+                            val isSelected = selectedCategory == cat
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(Radius.full))
+                                    .background(if (isSelected) Charcoal else CreamDark)
+                                    .clickable { selectedCategory = cat }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = DmSansFamily,
+                                    color = if (isSelected) Cream else Charcoal60
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Info banner
+                item(span = { GridItemSpan(1) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.md))
+                            .background(TerracottaPale)
+                            .padding(Spacing.md),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        Text("🔍", fontSize = 14.sp)
+                        Text(
+                            text = "Punya barang yang orang cari? Tekan \"Hubungi\" dan langsung chat via WA!",
+                            fontFamily = DmSansFamily,
+                            fontSize = 12.sp,
+                            color = Charcoal,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+
+                if (filteredData.isEmpty()) {
+                    item {
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🔍", fontSize = 48.sp)
+                                Spacer(Modifier.height(12.dp))
+                                Text("Belum ada yang mencari", fontFamily = FrauncesFamily, color = Charcoal,
+                                    fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(4.dp))
+                                Text("Jadilah yang pertama cari barang!", fontFamily = DmSansFamily,
+                                    color = Charcoal60, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredData.size) { index ->
+                        WantedCard(
+                            wanted          = filteredData[index],
+                            isFulfillLoading = isFulfillLoading,
+                            onFulfill       = { onFulfill(filteredData[index].id) }
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
         }
     }
 }
 
+// ── WANTED CARD ───────────────────────────────────────────────────
+@Composable
+fun WantedCard(
+    wanted: WantedDto,
+    isFulfillLoading: Boolean,
+    onFulfill: () -> Unit
+) {
+    val createdAtLabel = timeAgo(wanted.createdAt)
+    val initials = wanted.user.name.trim().split(" ")
+        .filter { it.isNotBlank() }.take(2)
+        .joinToString("") { it.first().uppercase() }
+    val formattedBudget = wanted.formattedMaxPrice()
+
+    Card(
+        modifier  = Modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(Radius.lg),
+        colors    = CardDefaults.cardColors(containerColor = Cream),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+
+            // ── Avatar + nama + badge ──────────────────────────────
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(TerracottaPale),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(initials, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Terracotta, fontFamily = DmSansFamily)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(wanted.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
+                    Text("Mencari · $createdAtLabel", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.full))
+                        .background(TerracottaPale)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text("CARI", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Terracotta, fontFamily = DmSansFamily)
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // ── Judul barang ──────────────────────────────────────
+            Text(
+                text = wanted.title,
+                fontFamily = FrauncesFamily,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = Charcoal,
+                lineHeight = 22.sp
+            )
+
+            // ── Deskripsi ─────────────────────────────────────────
+            if (!wanted.description.isNullOrEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = wanted.description,
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    color = Charcoal60,
+                    lineHeight = 17.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Chips: budget + kategori ──────────────────────────
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (formattedBudget != null) {
+                    PrelovedInfoChip("💰 $formattedBudget")
+                }
+                if (!wanted.category.isNullOrEmpty()) {
+                    PrelovedInfoChip("${categoryEmojiFor(wanted.category)} ${wanted.category}")
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.sm))
+            HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
+            Spacer(Modifier.height(Spacing.sm))
+
+            // ── Tombol Hubungi ────────────────────────────────────
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.full))
+                        .background(if (isFulfillLoading) Terracotta.copy(alpha = 0.5f) else Terracotta)
+                        .clickable(enabled = !isFulfillLoading) { onFulfill() }
+                        .padding(horizontal = 20.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isFulfillLoading) {
+                        CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("💬 Hubungi", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cream, fontFamily = DmSansFamily)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrelovedInfoChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.full))
+            .background(CreamDark)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(text, fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+    }
+}
+
 // ── HELPER ────────────────────────────────────────────────────────
-fun categoryEmojiFor(category: String): String = when (category.uppercase()) {
+fun categoryEmojiFor(category: String): String = when (category.uppercase().trim()) {
+    "SEPATU"     -> "👟"
     "FASHION"    -> "👗"
     "GADGET"     -> "📱"
     "BUKU"       -> "📚"
