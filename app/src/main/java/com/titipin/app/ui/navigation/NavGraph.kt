@@ -1,4 +1,4 @@
-package com.titipin.app.navigation
+package com.titipin.app.ui.navigation
 
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -27,7 +27,11 @@ import com.titipin.app.ui.jastip.JastipDetailScreen
 import com.titipin.app.ui.jastip.JastipScreen
 import com.titipin.app.ui.preloved.PrelovedDetailScreen
 import com.titipin.app.ui.preloved.PrelovedScreen
+import com.titipin.app.ui.profile.JastipSayaScreen
+import com.titipin.app.ui.profile.PengaturanScreen
+import com.titipin.app.ui.profile.PrelovedSayaScreen
 import com.titipin.app.ui.profile.ProfileScreen
+import com.titipin.app.ui.profile.ReviewRatingScreen
 import com.titipin.app.ui.splash.SplashScreen
 import com.titipin.app.ui.theme.*
 
@@ -55,6 +59,10 @@ val routesWithoutBottomNav = listOf(
     Routes.REGISTER,
     Routes.JASTIP_DETAIL_PATTERN,
     Routes.PRELOVED_DETAIL_PATTERN,
+    Routes.JASTIP_SAYA,
+    Routes.PRELOVED_SAYA,
+    Routes.REVIEW_RATING,
+    Routes.PENGATURAN,
 )
 
 @Composable
@@ -134,8 +142,33 @@ fun TitipinNavGraph() {
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }
+                    },
+                    onNavigateToJastipSaya   = { navController.navigate(Routes.JASTIP_SAYA) },
+                    onNavigateToPrelovedSaya = { navController.navigate(Routes.PRELOVED_SAYA) },
+                    onNavigateToReview       = { navController.navigate(Routes.REVIEW_RATING) },
+                    onNavigateToPengaturan   = { navController.navigate(Routes.PENGATURAN) }
+                )
+            }
+
+            composable(Routes.JASTIP_SAYA) {
+                JastipSayaScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.PRELOVED_SAYA) {
+                PrelovedSayaScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Routes.prelovedDetail(id))
                     }
                 )
+            }
+
+            composable(Routes.REVIEW_RATING) {
+                ReviewRatingScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.PENGATURAN) {
+                PengaturanScreen(onBack = { navController.popBackStack() })
             }
 
             // JastipScreen sekarang handle bottom sheet sendiri di dalamnya

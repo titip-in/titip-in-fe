@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.titipin.app.navigation.TitipinNavGraph
+import com.titipin.app.ui.navigation.TitipinNavGraph
 import com.titipin.app.ui.theme.TitipinTheme
 import dagger.hilt.android.AndroidEntryPoint
 

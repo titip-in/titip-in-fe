@@ -20,6 +20,11 @@ interface ApiService {
     @GET("jastip")
     suspend fun getJastipList(): Response<ApiResponse<List<JastipDto>>>
 
+    @GET("jastip")
+    suspend fun getMyJastipList(
+        @Query("userId") userId: String
+    ): Response<ApiResponse<List<JastipDto>>>
+
     @GET("jastip/{id}")
     suspend fun getJastipDetail(@Path("id") id: String): Response<ApiResponse<JastipDto>>
 
@@ -38,6 +43,11 @@ interface ApiService {
     // ── PRELOVED ──────────────────────────────────────────────────
     @GET("preloved")
     suspend fun getPrelovedList(): Response<ApiResponse<List<PrelovedDto>>>
+
+    @GET("preloved")
+    suspend fun getMyPrelovedList(
+        @Query("userId") userId: String
+    ): Response<ApiResponse<List<PrelovedDto>>>
 
     @GET("preloved/{id}")
     suspend fun getPrelovedDetail(@Path("id") id: String): Response<ApiResponse<PrelovedDto>>

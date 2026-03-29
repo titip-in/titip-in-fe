@@ -1,4 +1,4 @@
-package com.titipin.app.navigation
+package com.titipin.app.ui.navigation
 
 object Routes {
     // Splash
@@ -16,11 +16,15 @@ object Routes {
 
     // Jastip sub-screens
     const val JASTIP_DETAIL_PATTERN = "jastip/{id}"
-    // JASTIP_FORM dihapus — sekarang pakai ModalBottomSheet di dalam JastipScreen
+    const val JASTIP_SAYA           = "jastip_saya"
 
     // Preloved sub-screens
     const val PRELOVED_DETAIL_PATTERN = "preloved/{id}"
-    // PRELOVED_FORM juga nanti ModalBottomSheet
+    const val PRELOVED_SAYA           = "preloved_saya"
+
+    // Profile sub-screens
+    const val REVIEW_RATING = "review_rating"
+    const val PENGATURAN    = "pengaturan"
 
     // Helper
     fun jastipDetail(id: String)   = "jastip/$id"

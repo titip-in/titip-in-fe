@@ -73,4 +73,17 @@ class PrelovedRepository @Inject constructor(
             Result.Error("Tidak bisa terhubung ke server")
         }
     }
+
+suspend fun getMyPrelovedList(userId: String): Result<List<PrelovedDto>> {
+    return try {
+        val response = apiService.getMyPrelovedList(userId)
+        if (response.isSuccessful && response.body()?.success == true) {
+            Result.Success(response.body()!!.data ?: emptyList())
+        } else {
+            Result.Error(response.body()?.error?.message ?: "Gagal memuat data")
+        }
+    } catch (e: Exception) {
+        Result.Error("Tidak bisa terhubung ke server")
+    }
+}
 }

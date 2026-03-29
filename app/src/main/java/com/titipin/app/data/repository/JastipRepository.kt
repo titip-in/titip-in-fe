@@ -73,4 +73,16 @@ class JastipRepository @Inject constructor(
             Result.Error("Tidak bisa terhubung ke server")
         }
     }
+suspend fun getMyJastipList(userId: String): Result<List<JastipDto>> {
+    return try {
+        val response = apiService.getMyJastipList(userId)
+        if (response.isSuccessful && response.body()?.success == true) {
+            Result.Success(response.body()!!.data ?: emptyList())
+        } else {
+            Result.Error(response.body()?.error?.message ?: "Gagal memuat data")
+        }
+    } catch (e: Exception) {
+        Result.Error("Tidak bisa terhubung ke server")
+    }
+}
 }

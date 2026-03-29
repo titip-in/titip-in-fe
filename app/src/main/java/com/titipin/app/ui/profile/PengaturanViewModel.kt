@@ -1,0 +1,65 @@
+package com.titipin.app.ui.profile
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.titipin.app.data.local.DataStoreManager
+import com.titipin.app.data.model.UserData
+import com.titipin.app.data.repository.AuthRepository
+import com.titipin.app.data.repository.Result
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+sealed class PengaturanUiState {
+    object Loading : PengaturanUiState()
+    data class Ready(val user: UserData) : PengaturanUiState()
+    data class Error(val message: String) : PengaturanUiState()
+}
+
+sealed class PengaturanActionState {
+    object Idle : PengaturanActionState()
+    object Loading : PengaturanActionState()
+    object Success : PengaturanActionState()
+    data class Error(val message: String) : PengaturanActionState()
+}
+
+@HiltViewModel
+class PengaturanViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+    private val dataStore: DataStoreManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<PengaturanUiState>(PengaturanUiState.Loading)
+    val uiState: StateFlow<PengaturanUiState> = _uiState.asStateFlow()
+
+    private val _actionState = MutableStateFlow<PengaturanActionState>(PengaturanActionState.Idle)
+    val actionState: StateFlow<PengaturanActionState> = _actionState.asStateFlow()
+
+    // Toggle state untuk notifikasi — disimpan lokal saja untuk sekarang
+    private val _notifJastip = MutableStateFlow(true)
+    val notifJastip: StateFlow<Boolean> = _notifJastip.asStateFlow()
+
+    private val _notifPesan = MutableStateFlow(false)
+    val notifPesan: StateFlow<Boolean> = _notifPesan.asStateFlow()
+
+    init { loadUser() }
+
+    fun loadUser() {
+        viewModelScope.launch {
+            _uiState.value = PengaturanUiState.Loading
+            _uiState.value = when (val result = authRepository.getMe()) {
+                is Result.Success -> PengaturanUiState.Ready(result.data)
+                is Result.Error   -> PengaturanUiState.Error(result.message)
+            }
+        }
+    }
+
+    fun toggleNotifJastip() { _notifJastip.value = !_notifJastip.value }
+    fun toggleNotifPesan()  { _notifPesan.value  = !_notifPesan.value }
+
+    fun resetActionState() { _actionState.value = PengaturanActionState.Idle }
+}

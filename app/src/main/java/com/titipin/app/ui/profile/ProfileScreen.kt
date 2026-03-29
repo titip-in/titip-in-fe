@@ -22,6 +22,10 @@ import com.titipin.app.ui.theme.*
 @Composable
 fun ProfileScreen(
     onLogout: () -> Unit = {},
+    onNavigateToJastipSaya: () -> Unit = {},
+    onNavigateToPrelovedSaya: () -> Unit = {},
+    onNavigateToReview: () -> Unit = {},
+    onNavigateToPengaturan: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -203,13 +207,17 @@ fun ProfileScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         ProfileMenuItem(emoji = "📦", label = "Jastip Saya",
-                            subtitle = "Lihat semua jastip kamu", bgColor = SagePale)
+                            subtitle = "Lihat semua jastip kamu", bgColor = SagePale,
+                            onClick = onNavigateToJastipSaya)
                         ProfileMenuItem(emoji = "🛍️", label = "Preloved Saya",
-                            subtitle = "Lihat semua barang kamu", bgColor = TerracottaPale)
+                            subtitle = "Lihat semua barang kamu", bgColor = TerracottaPale,
+                            onClick = onNavigateToPrelovedSaya)
                         ProfileMenuItem(emoji = "⭐", label = "Review & Rating",
-                            subtitle = "— ulasan diterima", bgColor = GoldPale)
+                            subtitle = "— ulasan diterima", bgColor = GoldPale,
+                            onClick = onNavigateToReview)
                         ProfileMenuItem(emoji = "⚙️", label = "Pengaturan",
-                            subtitle = "Akun, notifikasi, privasi", bgColor = CreamDark)
+                            subtitle = "Akun, notifikasi, privasi", bgColor = CreamDark,
+                            onClick = onNavigateToPengaturan)
 
                         // Keluar — card dengan border Terracotta
                         Row(
