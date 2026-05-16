@@ -7,14 +7,20 @@ import retrofit2.http.*
 interface ApiService {
 
     // ── AUTH ───────────────────────────────────────────────────────
-    @POST("auth/login")
+    @POST("v1/login")
     suspend fun login(@Body request: LoginRequest): Response<ApiResponse<AuthResponse>>
 
-    @POST("auth/register")
+    @POST("v1/register")
     suspend fun register(@Body request: RegisterRequest): Response<ApiResponse<AuthResponse>>
 
-    @GET("auth/me")
+    @POST("v1/logout")
+    suspend fun logout(): Response<ApiResponse<Unit>>
+
+    @GET("v1/me")
     suspend fun getMe(): Response<ApiResponse<UserData>>
+
+    @PUT("v1/me")
+    suspend fun updateMe(@Body request: UpdateProfileRequest): Response<ApiResponse<UserData>>
 
     // ── JASTIP ────────────────────────────────────────────────────
     @GET("jastip")

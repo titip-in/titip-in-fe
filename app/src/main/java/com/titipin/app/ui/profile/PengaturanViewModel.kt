@@ -61,5 +61,25 @@ class PengaturanViewModel @Inject constructor(
     fun toggleNotifJastip() { _notifJastip.value = !_notifJastip.value }
     fun toggleNotifPesan()  { _notifPesan.value  = !_notifPesan.value }
 
+    fun updateProfile(
+        name: String? = null,
+        waNumber: String? = null,
+        status: String? = null,
+        avatarUrl: String? = null
+    ) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            when (val result = authRepository.updateProfile(name, waNumber, status, avatarUrl)) {
+                is Result.Success -> {
+                    _uiState.value = PengaturanUiState.Ready(result.data)
+                    _actionState.value = PengaturanActionState.Success
+                }
+                is Result.Error -> {
+                    _actionState.value = PengaturanActionState.Error(result.message)
+                }
+            }
+        }
+    }
+
     fun resetActionState() { _actionState.value = PengaturanActionState.Idle }
 }

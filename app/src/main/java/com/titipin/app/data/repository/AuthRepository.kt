@@ -3,6 +3,8 @@ package com.titipin.app.data.repository
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
 import com.titipin.app.data.remote.ApiService
+import kotlinx.coroutines.flow.firstOrNull
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,14 +25,12 @@ class AuthRepository @Inject constructor(
                 val authData = response.body()!!.data!!
                 dataStore.saveAuthData(
                     accessToken  = authData.accessToken,
-                    refreshToken = "",
-                    userId       = authData.user.id,
-                    userName     = authData.user.name
+                    tokenType    = authData.tokenType,
+                    user         = authData.user
                 )
                 Result.Success(authData)
             } else {
-                val errorMsg = response.body()?.error?.message
-                    ?: response.body()?.message
+                val errorMsg = response.errorMessage()
                     ?: "Login gagal, coba lagi"
                 Result.Error(errorMsg)
             }
@@ -52,14 +52,12 @@ class AuthRepository @Inject constructor(
                 val authData = response.body()!!.data!!
                 dataStore.saveAuthData(
                     accessToken  = authData.accessToken,
-                    refreshToken = "",
-                    userId       = authData.user.id,
-                    userName     = authData.user.name
+                    tokenType    = authData.tokenType,
+                    user         = authData.user
                 )
                 Result.Success(authData)
             } else {
-                val errorMsg = response.body()?.error?.message
-                    ?: response.body()?.message
+                val errorMsg = response.errorMessage()
                     ?: "Registrasi gagal, coba lagi"
                 Result.Error(errorMsg)
             }
@@ -69,7 +67,13 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun logout() {
-        dataStore.clearAuthData()
+        try {
+            apiService.logout()
+        } catch (_: Exception) {
+            // Local session still has to be cleared even if the token is expired or offline.
+        } finally {
+            dataStore.clearAuthData()
+        }
     }
 
     // ── GET ME — ambil profil user yang sedang login ───────────────
@@ -77,9 +81,39 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.getMe()
             if (response.isSuccessful && response.body()?.success == true) {
-                Result.Success(response.body()!!.data!!)
+                val user = response.body()!!.data!!
+                dataStore.saveAuthDataFromUser(user)
+                Result.Success(user)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal memuat profil")
+                if (response.code() == 401) dataStore.clearAuthData()
+                Result.Error(response.errorMessage() ?: "Gagal memuat profil")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun updateProfile(
+        name: String? = null,
+        waNumber: String? = null,
+        status: String? = null,
+        avatarUrl: String? = null
+    ): Result<UserData> {
+        return try {
+            val request = UpdateProfileRequest(
+                name = name,
+                waNumber = waNumber?.let(::formatWaNumber),
+                status = status,
+                avatarUrl = avatarUrl
+            )
+            val response = apiService.updateMe(request)
+            if (response.isSuccessful && response.body()?.success == true) {
+                val user = response.body()!!.data!!
+                dataStore.saveAuthDataFromUser(user)
+                Result.Success(user)
+            } else {
+                if (response.code() == 401) dataStore.clearAuthData()
+                Result.Error(response.errorMessage() ?: "Gagal memperbarui profil")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server.")
@@ -96,5 +130,28 @@ class AuthRepository @Inject constructor(
             cleaned.startsWith("0")  -> "62${cleaned.substring(1)}"
             else -> "62$cleaned"
         }
+    }
+
+    private suspend fun DataStoreManager.saveAuthDataFromUser(user: UserData) {
+        val token = accessToken.firstOrNull() ?: return
+        val type = tokenType.firstOrNull() ?: "Bearer"
+        saveAuthData(
+            accessToken = token,
+            tokenType = type,
+            user = user
+        )
+    }
+
+    private fun <T> retrofit2.Response<ApiResponse<T>>.errorMessage(): String? {
+        body()?.error?.message?.let { return it }
+        body()?.message?.let { return it }
+
+        val raw = errorBody()?.string().orEmpty()
+        if (raw.isBlank()) return null
+
+        return runCatching {
+            val json = JSONObject(raw)
+            json.optString("message").takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 }
