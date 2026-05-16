@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.titipin.app.ui.auth.TitipinTextField
+import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -27,9 +28,12 @@ fun RequestFormContent(
     onDismiss: () -> Unit
 ) {
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val isLoading = actionState is RequestActionState.Loading
     var showConfirmDialog by remember { mutableStateOf(false) }
 
+    var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
+    var title        by remember { mutableStateOf("") }
     var fromLocation by remember { mutableStateOf("") }
     var toLocation   by remember { mutableStateOf("") }
     var notes        by remember { mutableStateOf("") }
@@ -101,13 +105,35 @@ fun RequestFormContent(
             ) {
                 Text("💡", fontSize = 14.sp)
                 Text(
-                    text = "Kamu butuh dititipin? Isi form ini, dan provider di sekitarmu bisa ambil requestmu.",
+                    text = "Kamu butuh dititipin? Isi request ini agar provider bisa menghubungi lewat WhatsApp.",
                     fontFamily = DmSansFamily,
                     fontSize = 12.sp,
                     color = Charcoal,
                     lineHeight = 18.sp
                 )
             }
+
+            if (categoryState is RequestCategoryState.Success) {
+                Text(
+                    text = "Kategori",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Charcoal
+                )
+                CategoryChipRow(
+                    categories = (categoryState as RequestCategoryState.Success).data,
+                    selectedCategoryId = selectedCategoryId,
+                    onCategorySelected = { selectedCategoryId = it }
+                )
+            }
+
+            TitipinTextField(
+                label         = "Judul Request",
+                value         = title,
+                onValueChange = { title = it },
+                placeholder   = "Contoh: Butuh laundry hari ini"
+            )
 
             // Dari
             TitipinTextField(
@@ -151,7 +177,7 @@ fun RequestFormContent(
         Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
             Button(
                 onClick = {
-                    if (fromLocation.isNotBlank() && toLocation.isNotBlank()) {
+                    if (title.isNotBlank() && fromLocation.isNotBlank() && toLocation.isNotBlank()) {
                         showConfirmDialog = true
                     }
                 },
@@ -163,7 +189,7 @@ fun RequestFormContent(
                     containerColor = Terracotta,
                     disabledContainerColor = Terracotta.copy(alpha = 0.5f)
                 ),
-                enabled = fromLocation.isNotBlank() && toLocation.isNotBlank() && !isLoading
+                enabled = title.isNotBlank() && fromLocation.isNotBlank() && toLocation.isNotBlank() && !isLoading
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -187,12 +213,15 @@ fun RequestFormContent(
     // ── Dialog Konfirmasi ─────────────────────────────────────────
     if (showConfirmDialog) {
         RequestConfirmDialog(
+            title = title.trim(),
             fromLocation = fromLocation.trim(),
             toLocation   = toLocation.trim(),
             notes        = notes.trim().ifBlank { null },
             onConfirm    = {
                 showConfirmDialog = false
                 viewModel.createRequest(
+                    categoryId    = selectedCategoryId,
+                    title         = title.trim(),
                     fromLocation = fromLocation.trim(),
                     toLocation   = toLocation.trim(),
                     notes        = notes.trim().ifBlank { null }
@@ -206,6 +235,7 @@ fun RequestFormContent(
 // ── Dialog Konfirmasi Request ──────────────────────────────────────
 @Composable
 fun RequestConfirmDialog(
+    title: String,
     fromLocation: String,
     toLocation: String,
     notes: String?,
@@ -256,6 +286,7 @@ fun RequestConfirmDialog(
                     .padding(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                ConfirmRow(label = "Judul", value = title)
                 ConfirmRow(label = "Dari", value = fromLocation)
                 ConfirmRow(label = "Ke", value = toLocation)
                 if (!notes.isNullOrEmpty()) {

@@ -23,31 +23,78 @@ class RequestRepository @Inject constructor(
     }
 
     suspend fun createRequest(
+        categoryId: Int?,
+        title: String,
         fromLocation: String,
         toLocation: String,
         notes: String?
     ): Result<RequestDto> {
         return try {
             val response = apiService.createRequest(
-                CreateRequestBody(fromLocation, toLocation, notes)
+                CreateRequestBody(
+                    categoryId = categoryId,
+                    title = title,
+                    notes = notes,
+                    fromLocation = fromLocation,
+                    toLocation = toLocation
+                )
             )
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal membuat request")
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal membuat request")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
         }
     }
 
-    suspend fun takeRequest(id: String): Result<TakeRequestResponse> {
+    suspend fun getRequestDetail(id: String): Result<RequestDto> {
         return try {
-            val response = apiService.takeRequest(id)
+            val response = apiService.getRequestDetail(id)
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal mengambil request")
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Request tidak ditemukan")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
+    suspend fun updateRequestStatus(id: String, status: String): Result<RequestDto> {
+        return try {
+            val response = apiService.updateRequest(id, UpdateRequestBody(status = status))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()!!.data!!)
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal update request")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
+    suspend fun deleteRequest(id: String): Result<Unit> {
+        return try {
+            val response = apiService.deleteRequest(id)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal menghapus request")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
+    suspend fun getMyRequestList(): Result<List<RequestDto>> {
+        return try {
+            val response = apiService.getMyRequestList()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()?.data?.data.orEmpty())
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")

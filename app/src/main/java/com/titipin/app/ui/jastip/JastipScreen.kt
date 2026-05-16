@@ -26,7 +26,6 @@ import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.shared.waMessageJastip
-import com.titipin.app.shared.waMessageTakeRequest
 import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.theme.*
@@ -49,6 +48,8 @@ fun JastipScreen(
     val requestListState by requestViewModel.listState.collectAsState()
     val requestActionState by requestViewModel.actionState.collectAsState()
     val isRequestRefreshing by requestViewModel.isRefreshing.collectAsState()
+    val requestCategoryState by requestViewModel.categoryState.collectAsState()
+    val selectedRequestCategoryId by requestViewModel.selectedCategoryId.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -61,7 +62,6 @@ fun JastipScreen(
     var showRequestSheet by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Tutup sheet jastip setelah sukses post
@@ -85,13 +85,11 @@ fun JastipScreen(
                     requestViewModel.loadRequestList()
                 }
             }
-            is RequestActionState.TakeSuccess -> {
-                val result   = (requestActionState as RequestActionState.TakeSuccess).takenResult
-                val waNumber = result.request.user.waNumber
-                val msg      = waMessageTakeRequest(result.request.fromLocation, result.request.toLocation)
+            is RequestActionState.FeatureInProgress -> {
                 requestViewModel.resetActionState()
-                requestViewModel.loadRequestList()
-                openWhatsApp(context, waNumber, msg)
+                scope.launch {
+                    snackbarHostState.showSnackbar("Fitur ambil request masih dalam pengembangan. Untuk sementara gunakan WhatsApp.")
+                }
             }
             is RequestActionState.Error -> {
                 val msg = (requestActionState as RequestActionState.Error).message
@@ -206,17 +204,13 @@ fun JastipScreen(
                         modifier     = Modifier.weight(1f)
                     ) {
                         JastipRequestContent(
-                            listState   = requestListState,
+                            listState = requestListState,
                             actionState = requestActionState,
-                            onTake      = { request ->
-                                // Navigate ke offer screen dulu biar user konfirmasi
-                                // Saat BE phase 2 siap, di offer screen baru POST /requests/{id}/offer
-                                onNavigateToOffer(
-                                    request.fromLocation,
-                                    request.toLocation,
-                                    request.user.name,
-                                    request.notes ?: ""
-                                )
+                            categoryState = requestCategoryState,
+                            selectedCategoryId = selectedRequestCategoryId,
+                            onCategorySelected = requestViewModel::selectCategory,
+                            onTake = {
+                                requestViewModel.showFeatureInProgress()
                             },
                             onRetry = { requestViewModel.loadRequestList() }
                         )
@@ -364,6 +358,9 @@ fun JastipTersediaContent(
 fun JastipRequestContent(
     listState: RequestListState,
     actionState: RequestActionState,
+    categoryState: RequestCategoryState,
+    selectedCategoryId: Int?,
+    onCategorySelected: (Int?) -> Unit,
     onTake: (RequestDto) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -394,6 +391,10 @@ fun JastipRequestContent(
         }
         is RequestListState.Success -> {
             val isTakeLoading = actionState is RequestActionState.Loading
+            val filteredData = selectedCategoryId?.let { selected ->
+                listState.data.filter { it.categoryId == selected }
+            } ?: listState.data
+
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = 0.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
@@ -419,7 +420,17 @@ fun JastipRequestContent(
                         )
                     }
                 }
-                if (listState.data.isEmpty()) {
+                if (categoryState is RequestCategoryState.Success) {
+                    item {
+                        CategoryChipRow(
+                            categories = categoryState.data,
+                            selectedCategoryId = selectedCategoryId,
+                            onCategorySelected = onCategorySelected,
+                            modifier = Modifier.padding(vertical = Spacing.sm)
+                        )
+                    }
+                }
+                if (filteredData.isEmpty()) {
                     item {
                         Box(
                             Modifier
@@ -444,7 +455,7 @@ fun JastipRequestContent(
                         }
                     }
                 } else {
-                    items(listState.data, key = { it.id }) { request ->
+                    items(filteredData, key = { it.id }) { request ->
                         RequestCard(
                             request       = request,
                             isTakeLoading = isTakeLoading,
@@ -465,7 +476,7 @@ fun RequestCard(
     isTakeLoading: Boolean,
     onTake: () -> Unit
 ) {
-    val createdAtLabel = timeAgo(request.createdAt)
+    val createdAtLabel = timeAgo(request.createdAt ?: request.updatedAt.orEmpty())
     val initials = request.user.name.trim().split(" ")
         .filter { it.isNotBlank() }.take(2)
         .joinToString("") { it.first().uppercase() }
@@ -489,19 +500,29 @@ fun RequestCard(
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(request.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                    Text("Request · $createdAtLabel", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Text(
+                        text = listOfNotNull(request.category?.name, createdAtLabel).joinToString(" · "),
+                        fontSize = 11.sp,
+                        color = Charcoal60,
+                        fontFamily = DmSansFamily
+                    )
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(GoldPale)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("OPEN", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Gold, fontFamily = DmSansFamily)
-                }
+                StatusBadge(status = request.status)
             }
 
             Spacer(Modifier.height(10.dp))
+
+            Text(
+                text = request.title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Charcoal,
+                fontFamily = DmSansFamily,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(Modifier.height(8.dp))
 
             // ── Highlight box rute ────────────────────────────────
             Column(

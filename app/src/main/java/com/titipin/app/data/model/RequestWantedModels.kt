@@ -1,26 +1,54 @@
 package com.titipin.app.data.model
 
+import com.google.gson.annotations.SerializedName
+
 // ── REQUEST (Cari Jastip) ──────────────────────────────────────────
 data class RequestDto(
     val id: String,
-    val userId: String,
-    val user: UserSummary,
-    val fromLocation: String,
-    val toLocation: String,
+    @SerializedName("user_id")
+    val userId: Int? = null,
+    val user: UserSummary = UserSummary(name = "Pengguna Titip.in", waNumber = ""),
+    @SerializedName("category_id")
+    val categoryId: Int? = null,
+    val category: CategoryDto? = null,
+    val title: String,
+    @SerializedName("description")
     val notes: String?,
+    @SerializedName("from_loc")
+    val fromLocation: String,
+    @SerializedName("to_loc")
+    val toLocation: String,
     val status: String,      // "OPEN" | "TAKEN" | "CLOSED"
-    val createdAt: String
+    @SerializedName("created_at")
+    val createdAt: String? = null,
+    @SerializedName("updated_at")
+    val updatedAt: String? = null
 )
 
 data class CreateRequestBody(
+    @SerializedName("category_id")
+    val categoryId: Int? = null,
+    val title: String,
+    @SerializedName("description")
+    val notes: String? = null,
+    @SerializedName("from_loc")
     val fromLocation: String,
+    @SerializedName("to_loc")
     val toLocation: String,
-    val notes: String? = null
+    val status: String? = null
 )
 
-data class TakeRequestResponse(
-    val request: RequestDto,
-    val takenBy: UserSummary
+data class UpdateRequestBody(
+    @SerializedName("category_id")
+    val categoryId: Int? = null,
+    val title: String? = null,
+    @SerializedName("description")
+    val notes: String? = null,
+    @SerializedName("from_loc")
+    val fromLocation: String? = null,
+    @SerializedName("to_loc")
+    val toLocation: String? = null,
+    val status: String? = null
 )
 
 // ── WANTED (Barang Dicari) ─────────────────────────────────────────

@@ -81,14 +81,26 @@ interface ApiService {
     suspend fun deletePreloved(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ── REQUESTS (Cari Jastip) ────────────────────────────────────
-    @GET("requests")
+    @GET("v1/jastip/requests")
     suspend fun getRequestList(): Response<ApiResponse<List<RequestDto>>>
 
-    @POST("requests")
+    @GET("v1/me/jastip/requests")
+    suspend fun getMyRequestList(): Response<ApiResponse<PaginatedResponse<RequestDto>>>
+
+    @GET("v1/jastip/requests/{id}")
+    suspend fun getRequestDetail(@Path("id") id: String): Response<ApiResponse<RequestDto>>
+
+    @POST("v1/jastip/requests")
     suspend fun createRequest(@Body body: CreateRequestBody): Response<ApiResponse<RequestDto>>
 
-    @PUT("requests/{id}/take")
-    suspend fun takeRequest(@Path("id") id: String): Response<ApiResponse<TakeRequestResponse>>
+    @PUT("v1/jastip/requests/{id}")
+    suspend fun updateRequest(
+        @Path("id") id: String,
+        @Body body: UpdateRequestBody
+    ): Response<ApiResponse<RequestDto>>
+
+    @DELETE("v1/jastip/requests/{id}")
+    suspend fun deleteRequest(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ── WANTED (Barang Dicari) ────────────────────────────────────
     @GET("wanted")
