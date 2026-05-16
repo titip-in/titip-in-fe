@@ -7,12 +7,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -226,22 +227,34 @@ fun JastipScreen(
             }
 
             // ── FAB ───────────────────────────────────────────────────
-            Box(
+            ExtendedFloatingActionButton(
+                onClick = {
+                    if (selectedTab == 0) showJastipSheet = true
+                    else showRequestSheet = true
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Spacing.lg, bottom = Spacing.lg)
-                    .size(52.dp)
-                    .shadow(elevation = 8.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(Terracotta)
-                    .clickable {
-                        if (selectedTab == 0) showJastipSheet = true
-                        else showRequestSheet = true
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("＋", color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Light)
-            }
+                    .padding(end = Spacing.lg, bottom = 112.dp)
+                    .navigationBarsPadding(),
+                containerColor = Terracotta,
+                contentColor = Cream,
+                shape = RoundedCornerShape(Radius.full),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = Cream
+                    )
+                },
+                text = {
+                    Text(
+                        text = if (selectedTab == 0) "Buka Jastip" else "Request",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = DmSansFamily
+                    )
+                }
+            )
         }
 
         // ── BOTTOM SHEET: Buka Jastip ─────────────────────────────────

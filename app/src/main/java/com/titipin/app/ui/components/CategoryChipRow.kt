@@ -2,6 +2,7 @@ package com.titipin.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
@@ -14,11 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.titipin.app.data.model.CategoryDto
 import com.titipin.app.ui.theme.Charcoal
-import com.titipin.app.ui.theme.Charcoal30
+import com.titipin.app.ui.theme.Charcoal60
 import com.titipin.app.ui.theme.Cream
 import com.titipin.app.ui.theme.DmSansFamily
+import com.titipin.app.ui.theme.Radius
 import com.titipin.app.ui.theme.SagePale
-import com.titipin.app.ui.theme.Terracotta
+import com.titipin.app.ui.theme.TerracottaPale
 
 @Composable
 fun CategoryChipRow(
@@ -71,16 +73,17 @@ private fun CategoryChip(
             )
         },
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = Cream,
+            containerColor = TerracottaPale.copy(alpha = 0.55f),
             selectedContainerColor = SagePale,
-            labelColor = Charcoal30,
+            labelColor = Charcoal60,
             selectedLabelColor = Charcoal
         ),
+        shape = RoundedCornerShape(Radius.full),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
-            borderColor = Charcoal30,
-            selectedBorderColor = Terracotta
+            borderColor = TerracottaPale.copy(alpha = 0f),
+            selectedBorderColor = SagePale.copy(alpha = 0f)
         )
     )
 }
