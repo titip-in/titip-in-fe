@@ -5,11 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.PrelovedDto
+import com.titipin.app.data.model.PrelovedRequestDto
+import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.PrelovedRepository
+import com.titipin.app.data.repository.PrelovedRequestRepository
 import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,13 +24,25 @@ import javax.inject.Inject
 data class HomeUiState(
     val userName: String = "",
     val userInitials: String = "",
+    // ── Raw data ──────────────────────────────────────────────────
     val allJastip: List<JastipDto> = emptyList(),
     val allPreloved: List<PrelovedDto> = emptyList(),
+    val allJastipRequests: List<RequestDto> = emptyList(),
+    val allPrelovedRequests: List<PrelovedRequestDto> = emptyList(),
+    // ── Derived: recent activity feed ─────────────────────────────
     val recentJastip: List<JastipDto> = emptyList(),
     val recentPreloved: List<PrelovedDto> = emptyList(),
-    val requestCount: Int = 0,
+    val recentJastipRequests: List<RequestDto> = emptyList(),
+    val recentPrelovedRequests: List<PrelovedRequestDto> = emptyList(),
+    // ── Counts ────────────────────────────────────────────────────
+    val jastipCount: Int = 0,
+    val prelovedCount: Int = 0,
+    val jastipRequestCount: Int = 0,
+    val prelovedRequestCount: Int = 0,
+    // ── State ─────────────────────────────────────────────────────
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
+    // ── Search ───────────────────────────────────────────────────
     val searchQuery: String = "",
     val searchJastip: List<JastipDto> = emptyList(),
     val searchPreloved: List<PrelovedDto> = emptyList(),
@@ -39,7 +55,8 @@ class HomeViewModel @Inject constructor(
     private val dataStore: DataStoreManager,
     private val jastipRepository: JastipRepository,
     private val prelovedRepository: PrelovedRepository,
-    private val requestRepository: RequestRepository
+    private val requestRepository: RequestRepository,
+    private val prelovedRequestRepository: PrelovedRequestRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -56,21 +73,33 @@ class HomeViewModel @Inject constructor(
 
             _uiState.value = _uiState.value.copy(userName = name, userInitials = initials)
 
-            val jastipResult   = jastipRepository.getJastipList()
-            val prelovedResult = prelovedRepository.getPrelovedList()
-            val requestResult  = requestRepository.getRequestList()
+            // Paralel fetch 4 endpoint publik
+            val jastipDeferred          = async { jastipRepository.getJastipList() }
+            val prelovedDeferred         = async { prelovedRepository.getPrelovedList() }
+            val jastipRequestDeferred    = async { requestRepository.getRequestList() }
+            val prelovedRequestDeferred  = async { prelovedRequestRepository.getPrelovedRequestList() }
 
-            val allJastip    = if (jastipResult   is Result.Success) jastipResult.data   else emptyList()
-            val allPreloved  = if (prelovedResult is Result.Success) prelovedResult.data else emptyList()
-            val requestCount = if (requestResult  is Result.Success) requestResult.data.size else 0
+            val allJastip           = (jastipDeferred.await()         as? Result.Success)?.data ?: emptyList()
+            val allPreloved         = (prelovedDeferred.await()        as? Result.Success)?.data ?: emptyList()
+            val allJastipRequests   = (jastipRequestDeferred.await()   as? Result.Success)?.data ?: emptyList()
+            val allPrelovedRequests = (prelovedRequestDeferred.await() as? Result.Success)?.data ?: emptyList()
 
             _uiState.value = _uiState.value.copy(
-                allJastip      = allJastip,
-                allPreloved    = allPreloved,
-                recentJastip   = allJastip.take(2),
-                recentPreloved = allPreloved.take(2),
-                requestCount   = requestCount,
-                isLoading      = false
+                allJastip           = allJastip,
+                allPreloved         = allPreloved,
+                allJastipRequests   = allJastipRequests,
+                allPrelovedRequests = allPrelovedRequests,
+                // Recent: 2 item tiap kategori untuk activity feed
+                recentJastip           = allJastip.take(2),
+                recentPreloved         = allPreloved.take(2),
+                recentJastipRequests   = allJastipRequests.take(2),
+                recentPrelovedRequests = allPrelovedRequests.take(2),
+                // Stats
+                jastipCount          = allJastip.count { it.status == "ACTIVE" },
+                prelovedCount        = allPreloved.count { it.status == "AVAILABLE" },
+                jastipRequestCount   = allJastipRequests.count { it.status == "OPEN" },
+                prelovedRequestCount = allPrelovedRequests.count { it.status == "OPEN" },
+                isLoading = false
             )
         }
     }
@@ -94,14 +123,15 @@ class HomeViewModel @Inject constructor(
         val q = query.trim().lowercase()
         _uiState.value = _uiState.value.copy(
             searchJastip = _uiState.value.allJastip.filter {
+                it.title.lowercase().contains(q) ||
                 it.fromLocation.lowercase().contains(q) ||
-                        it.toLocation.lowercase().contains(q) ||
-                        (it.notes?.lowercase()?.contains(q) == true)
+                it.toLocation.lowercase().contains(q) ||
+                (it.notes?.lowercase()?.contains(q) == true)
             },
             searchPreloved = _uiState.value.allPreloved.filter {
                 it.title.lowercase().contains(q) ||
-                        (it.category?.name?.lowercase()?.contains(q) == true) ||
-                        (it.description?.lowercase()?.contains(q) == true)
+                (it.category?.name?.lowercase()?.contains(q) == true) ||
+                (it.description?.lowercase()?.contains(q) == true)
             }
         )
     }

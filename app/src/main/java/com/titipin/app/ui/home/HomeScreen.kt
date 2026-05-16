@@ -33,7 +33,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.PrelovedDto
+import com.titipin.app.data.model.PrelovedRequestDto
+import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
@@ -121,6 +124,7 @@ fun HomeScreen(
             // ── HOME CONTENT ──────────────────────────────────────
             AnimatedVisibility(visible = !uiState.isSearchActive, enter = fadeIn(), exit = fadeOut()) {
                 Column {
+                    // ── STATS GRID ────────────────────────────────
                     Column(
                         modifier = Modifier.padding(horizontal = Spacing.lg),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -128,106 +132,124 @@ fun HomeScreen(
                         if (uiState.isLoading) {
                             HomeSkeleton()
                         } else {
-                            // Card 1: Jastip Aktif
+                            // Hero card: Jastip Aktif
                             Box(
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(Radius.lg))
                                     .background(Charcoal)
                                     .clickable { onNavigateToJastip() }
                                     .padding(Spacing.md)
                             ) {
-                                Box(modifier = Modifier.size(80.dp).offset(x = 20.dp, y = (-20).dp)
-                                    .clip(CircleShape).background(Sage.copy(alpha = 0.15f))
-                                    .align(Alignment.TopEnd))
+                                Box(
+                                    modifier = Modifier.size(80.dp).offset(x = 20.dp, y = (-20).dp)
+                                        .clip(CircleShape).background(Sage.copy(alpha = 0.15f))
+                                        .align(Alignment.TopEnd)
+                                )
                                 Column {
-                                    Text("● TERSEDIA SEKARANG", fontSize = 9.sp,
+                                    Text(
+                                        "● AKTIF SEKARANG", fontSize = 9.sp,
                                         fontWeight = FontWeight.SemiBold, color = Sage,
-                                        fontFamily = DmSansFamily, letterSpacing = 1.5.sp)
+                                        fontFamily = DmSansFamily, letterSpacing = 1.5.sp
+                                    )
                                     Spacer(Modifier.height(4.dp))
-                                    Text("Jastip Aktif\ndi Malang", fontSize = 20.sp,
+                                    Text(
+                                        "Jastip Aktif\ndi Malang", fontSize = 20.sp,
                                         color = Cream, fontFamily = FrauncesFamily,
-                                        fontStyle = FontStyle.Italic, lineHeight = 24.sp)
+                                        fontStyle = FontStyle.Italic, lineHeight = 24.sp
+                                    )
                                     Spacer(Modifier.height(Spacing.sm))
-                                    Row(modifier = Modifier.fillMaxWidth(),
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.Bottom) {
+                                        verticalAlignment = Alignment.Bottom
+                                    ) {
                                         Column {
                                             Text(
-                                                text = if (uiState.allJastip.isNotEmpty()) "${uiState.allJastip.size}" else "—",
+                                                text = "${uiState.jastipCount}",
                                                 fontSize = 32.sp, fontWeight = FontWeight.Light,
-                                                color = Cream, fontFamily = FrauncesFamily, lineHeight = 36.sp)
-                                            Text("jastip tersedia", fontSize = 10.sp,
-                                                color = Cream.copy(alpha = 0.5f), fontFamily = DmSansFamily)
+                                                color = Cream, fontFamily = FrauncesFamily, lineHeight = 36.sp
+                                            )
+                                            Text(
+                                                "jastip tersedia", fontSize = 10.sp,
+                                                color = Cream.copy(alpha = 0.5f), fontFamily = DmSansFamily
+                                            )
                                         }
-                                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full))
-                                            .background(Sage).clickable { onNavigateToJastip() }
-                                            .padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                            Text("Lihat Semua →", fontSize = 11.sp,
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(Radius.full))
+                                                .background(Sage)
+                                                .clickable { onNavigateToJastip() }
+                                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                "Lihat Semua →", fontSize = 11.sp,
                                                 fontWeight = FontWeight.SemiBold,
-                                                color = Color.White, fontFamily = DmSansFamily)
+                                                color = Color.White, fontFamily = DmSansFamily
+                                            )
                                         }
                                     }
                                 }
                             }
 
-                            // Card 2 + 3
+                            // Row mini stats: Preloved + Request Jastip + Request Preloved
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(Radius.lg))
-                                    .background(Terracotta).clickable { onNavigateToPreloved() }.padding(Spacing.md)) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        Text("👗", fontSize = 22.sp)
-                                        Spacer(Modifier.height(Spacing.sm))
-                                        Text("Preloved\nTerbaru", fontSize = 15.sp,
-                                            color = Color.White, fontFamily = FrauncesFamily, lineHeight = 20.sp)
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = if (uiState.allPreloved.isNotEmpty()) "${uiState.allPreloved.size} barang aktif" else "— barang aktif",
-                                            fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), fontFamily = DmSansFamily)
-                                        Spacer(Modifier.height(Spacing.sm))
-                                        Box(modifier = Modifier.size(28.dp).clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.2f)).align(Alignment.End),
-                                            contentAlignment = Alignment.Center) {
-                                            Text("→", fontSize = 12.sp, color = Color.White)
-                                        }
-                                    }
-                                }
-                                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(Radius.lg))
-                                    .background(SagePale).clickable { onNavigateToJastip() }.padding(Spacing.md)) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        Text("📍", fontSize = 22.sp)
-                                        Spacer(Modifier.height(Spacing.sm))
-                                        Text("Request\nJastip", fontSize = 15.sp,
-                                            color = Charcoal, fontFamily = FrauncesFamily, lineHeight = 20.sp)
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = if (uiState.requestCount > 0) "${uiState.requestCount} request terbuka" else "— request terbuka",
-                                            fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
-                                        Spacer(Modifier.height(Spacing.sm))
-                                        Box(modifier = Modifier.size(28.dp).clip(CircleShape)
-                                            .background(Sage).align(Alignment.End),
-                                            contentAlignment = Alignment.Center) {
-                                            Text("→", fontSize = 12.sp, color = Color.White)
-                                        }
-                                    }
-                                }
+                                // Preloved
+                                MiniStatCard(
+                                    emoji     = "🛍️",
+                                    label     = "Preloved",
+                                    count     = uiState.prelovedCount,
+                                    unit      = "barang",
+                                    bgColor   = Terracotta,
+                                    textColor = Color.White,
+                                    onClick   = onNavigateToPreloved,
+                                    modifier  = Modifier.weight(1f)
+                                )
+                                // Jastip Request
+                                MiniStatCard(
+                                    emoji     = "📍",
+                                    label     = "Request\nJastip",
+                                    count     = uiState.jastipRequestCount,
+                                    unit      = "terbuka",
+                                    bgColor   = SagePale,
+                                    textColor = Charcoal,
+                                    onClick   = onNavigateToJastip,
+                                    modifier  = Modifier.weight(1f)
+                                )
                             }
 
-                            // Card 4: Featured
-                            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.lg))
-                                .background(GoldPale).padding(horizontal = Spacing.md, vertical = 14.dp),
+                            // Preloved Request card full-width
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(Radius.lg))
+                                    .background(GoldPale)
+                                    .clickable { onNavigateToPreloved() }
+                                    .padding(horizontal = Spacing.md, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("⭐", fontSize = 24.sp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text("🔍", fontSize = 24.sp)
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Featured Listing", fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium, color = Charcoal, fontFamily = FrauncesFamily)
-                                    Text("Promosikan jastipmu", fontSize = 10.sp,
-                                        color = Charcoal60, fontFamily = DmSansFamily)
+                                    Text(
+                                        "Barang Dicari", fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium, color = Charcoal, fontFamily = FrauncesFamily
+                                    )
+                                    Text(
+                                        "${uiState.prelovedRequestCount} pencarian aktif · Tab Dicari",
+                                        fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
+                                    )
                                 }
-                                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full))
-                                    .background(Gold).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                                    Text("Baru", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                        color = Color.White, fontFamily = DmSansFamily)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(Radius.full))
+                                        .background(Gold)
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        "Lihat →", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        color = Color.White, fontFamily = DmSansFamily
+                                    )
                                 }
                             }
                         }
@@ -236,40 +258,133 @@ fun HomeScreen(
                     Spacer(Modifier.height(Spacing.md))
 
                     // ── AKTIVITAS TERBARU ──────────────────────────
-                    Text("AKTIVITAS TERBARU", fontSize = 10.sp,
+                    Text(
+                        "AKTIVITAS TERBARU", fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
                         color = Charcoal60, fontFamily = DmSansFamily,
-                        modifier = Modifier.padding(horizontal = Spacing.lg))
+                        modifier = Modifier.padding(horizontal = Spacing.lg)
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Column(modifier = Modifier.padding(horizontal = Spacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = Spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         if (uiState.isLoading) {
-                            repeat(2) { ActivitySkeleton() }
+                            repeat(3) { ActivitySkeleton() }
                         } else {
-                            uiState.recentJastip.forEach { jastip ->
-                                ActivityItem(dotColor = Sage,
-                                    title    = "${jastip.fromLocation} → ${jastip.toLocation}",
-                                    subtitle = jastip.user.name.trim(),
-                                    time     = timeAgo(jastip.createdAt),
-                                    onClick  = onNavigateToJastip)
+                            // Merge semua aktivitas dan sort by waktu (terbaru dulu)
+                            data class FeedItem(
+                                val dotColor: Color,
+                                val title: String,
+                                val subtitle: String,
+                                val time: String,
+                                val onClick: () -> Unit
+                            )
+
+                            val feedItems = buildList<FeedItem> {
+                                uiState.recentJastip.forEach { j ->
+                                    add(FeedItem(
+                                        dotColor = Sage,
+                                        title    = j.title.ifBlank { "${j.fromLocation} → ${j.toLocation}" },
+                                        subtitle = "Jastip · ${j.user.name.trim()}",
+                                        time     = timeAgo(j.createdAt),
+                                        onClick  = onNavigateToJastip
+                                    ))
+                                }
+                                uiState.recentPreloved.forEach { p ->
+                                    add(FeedItem(
+                                        dotColor = Terracotta,
+                                        title    = p.title,
+                                        subtitle = "Preloved · ${p.formattedPrice()}",
+                                        time     = timeAgo(p.createdAt ?: p.updatedAt.orEmpty()),
+                                        onClick  = onNavigateToPreloved
+                                    ))
+                                }
+                                uiState.recentJastipRequests.forEach { r ->
+                                    add(FeedItem(
+                                        dotColor = Gold,
+                                        title    = r.title,
+                                        subtitle = "Request · ${r.fromLocation} → ${r.toLocation}",
+                                        time     = timeAgo(r.createdAt ?: r.updatedAt.orEmpty()),
+                                        onClick  = onNavigateToJastip
+                                    ))
+                                }
+                                uiState.recentPrelovedRequests.forEach { pr ->
+                                    add(FeedItem(
+                                        dotColor = Gold,
+                                        title    = pr.title,
+                                        subtitle = "Cari Barang · ${pr.formattedMaxPrice() ?: "Budget fleksibel"}",
+                                        time     = timeAgo(pr.createdAt.orEmpty()),
+                                        onClick  = onNavigateToPreloved
+                                    ))
+                                }
                             }
-                            uiState.recentPreloved.forEach { preloved ->
-                                ActivityItem(dotColor = Terracotta,
-                                    title    = preloved.title,
-                                    subtitle = "Preloved · ${preloved.formattedPrice()}",
-                                    time     = timeAgo(preloved.createdAt ?: preloved.updatedAt.orEmpty()),
-                                    onClick  = onNavigateToPreloved)
-                            }
-                            if (uiState.recentJastip.isEmpty() && uiState.recentPreloved.isEmpty()) {
-                                ActivityItem(dotColor = Sage,
+
+                            if (feedItems.isEmpty()) {
+                                ActivityItem(
+                                    dotColor = Sage,
                                     title    = "Belum ada aktivitas terbaru",
                                     subtitle = "Jadilah yang pertama buka jastip!",
-                                    time     = "")
+                                    time     = ""
+                                )
+                            } else {
+                                feedItems.take(6).forEach { item ->
+                                    ActivityItem(
+                                        dotColor = item.dotColor,
+                                        title    = item.title,
+                                        subtitle = item.subtitle,
+                                        time     = item.time,
+                                        onClick  = item.onClick
+                                    )
+                                }
                             }
                         }
                     }
                     Spacer(Modifier.height(Spacing.xl))
                 }
+            }
+        }
+    }
+}
+
+// ── MINI STAT CARD ────────────────────────────────────────────────
+@Composable
+fun MiniStatCard(
+    emoji: String,
+    label: String,
+    count: Int,
+    unit: String,
+    bgColor: Color,
+    textColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(Spacing.md)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(emoji, fontSize = 22.sp)
+            Spacer(Modifier.height(Spacing.sm))
+            Text(
+                label, fontSize = 15.sp,
+                color = textColor, fontFamily = FrauncesFamily, lineHeight = 20.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "$count $unit",
+                fontSize = 10.sp, color = textColor.copy(alpha = 0.7f), fontFamily = DmSansFamily
+            )
+            Spacer(Modifier.height(Spacing.sm))
+            Box(
+                modifier = Modifier.size(28.dp).clip(CircleShape)
+                    .background(textColor.copy(alpha = 0.15f)).align(Alignment.End),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("→", fontSize = 12.sp, color = textColor)
             }
         }
     }
@@ -282,7 +397,6 @@ fun HomeSearchBar(
     onClear: () -> Unit, onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isFocused by remember { mutableStateOf(false) }
     Row(
         modifier = modifier.clip(RoundedCornerShape(Radius.md))
             .background(CreamDark).padding(horizontal = Spacing.md, vertical = 12.dp),
@@ -291,21 +405,25 @@ fun HomeSearchBar(
         Text("🔍", fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
         BasicTextField(
             value = query, onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f).onFocusChanged { isFocused = it.isFocused },
+            modifier = Modifier.weight(1f).onFocusChanged { },
             textStyle = TextStyle(fontSize = 13.sp, fontFamily = DmSansFamily, color = Charcoal),
             singleLine = true, cursorBrush = SolidColor(Terracotta),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onDone() }),
             decorationBox = { inner ->
-                if (query.isEmpty()) Text("Cari jastip atau barang...", fontSize = 13.sp,
-                    color = Charcoal30, fontFamily = DmSansFamily)
+                if (query.isEmpty()) Text(
+                    "Cari jastip atau barang...", fontSize = 13.sp,
+                    color = Charcoal30, fontFamily = DmSansFamily
+                )
                 inner()
             }
         )
         AnimatedVisibility(visible = query.isNotEmpty()) {
-            Box(modifier = Modifier.padding(start = 6.dp).size(20.dp).clip(CircleShape)
-                .background(Charcoal30).clickable { onClear() },
-                contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.padding(start = 6.dp).size(20.dp).clip(CircleShape)
+                    .background(Charcoal30).clickable { onClear() },
+                contentAlignment = Alignment.Center
+            ) {
                 Text("✕", fontSize = 10.sp, color = Cream, fontFamily = DmSansFamily)
             }
         }
@@ -318,41 +436,52 @@ fun SearchResultsContent(
     jastipResults: List<JastipDto>, prelovedResults: List<PrelovedDto>,
     query: String, onJastipClick: () -> Unit, onPrelovedClick: () -> Unit
 ) {
-    Column(modifier = Modifier.padding(horizontal = Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(
+        modifier = Modifier.padding(horizontal = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
         val total = jastipResults.size + prelovedResults.size
         Text(
             text = if (total > 0) "$total hasil untuk \"$query\"" else "Tidak ada hasil untuk \"$query\"",
             fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily,
-            modifier = Modifier.padding(bottom = 4.dp))
-
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
         if (jastipResults.isNotEmpty()) {
-            Text("📦 JASTIP", fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp, color = Sage, fontFamily = DmSansFamily)
+            Text(
+                "📦 JASTIP", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp, color = Sage, fontFamily = DmSansFamily
+            )
             jastipResults.take(3).forEach { jastip ->
                 SearchResultItem(
-                    emoji = "📦", title = "${jastip.fromLocation} → ${jastip.toLocation}",
+                    emoji   = "📦",
+                    title   = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },
                     subtitle = jastip.user.name.trim(),
-                    badge = if (jastip.status == "ACTIVE") "Aktif" else "Tutup",
+                    badge   = if (jastip.status == "ACTIVE") "Aktif" else "Tutup",
                     badgeBg = if (jastip.status == "ACTIVE") SagePale else CreamDark,
                     badgeFg = if (jastip.status == "ACTIVE") Sage else Charcoal30,
-                    onClick = onJastipClick)
+                    onClick = onJastipClick
+                )
             }
         }
         if (prelovedResults.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
-            Text("🛍️ PRELOVED", fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp, color = Terracotta, fontFamily = DmSansFamily)
+            Text(
+                "🛍️ PRELOVED", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp, color = Terracotta, fontFamily = DmSansFamily
+            )
             prelovedResults.take(3).forEach { item ->
                 SearchResultItem(
-                    emoji = "🛍️", title = item.title, subtitle = item.formattedPrice(),
-                    badge = item.category?.name ?: "Preloved", badgeBg = TerracottaPale, badgeFg = Terracotta,
-                    onClick = onPrelovedClick)
+                    emoji   = "🛍️", title = item.title, subtitle = item.formattedPrice(),
+                    badge   = item.category?.name ?: "Preloved", badgeBg = TerracottaPale, badgeFg = Terracotta,
+                    onClick = onPrelovedClick
+                )
             }
         }
         if (total == 0) {
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xl),
-                contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xl),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("🔍", fontSize = 36.sp)
                     Spacer(Modifier.height(8.dp))
@@ -369,20 +498,27 @@ private fun SearchResultItem(
     emoji: String, title: String, subtitle: String,
     badge: String, badgeBg: Color, badgeFg: Color, onClick: () -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
-        .background(Color.White).clickable { onClick() }.padding(horizontal = Spacing.md, vertical = 10.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
+            .background(Color.White).clickable { onClick() }
+            .padding(horizontal = Spacing.md, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Text(emoji, fontSize = 16.sp)
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                color = Charcoal, fontFamily = DmSansFamily, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = Charcoal, fontFamily = DmSansFamily,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
             Text(subtitle, fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
         }
-        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(badgeBg)
-            .padding(horizontal = 8.dp, vertical = 3.dp)) {
-            Text(badge, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
-                color = badgeFg, fontFamily = DmSansFamily)
+        Box(
+            modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(badgeBg)
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+            Text(badge, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = badgeFg, fontFamily = DmSansFamily)
         }
     }
 }
@@ -406,10 +542,12 @@ fun HomeSkeleton() {
 
 @Composable
 fun ActivitySkeleton() {
-    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
-        .background(Color.White).padding(horizontal = 12.dp, vertical = 12.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
+            .background(Color.White).padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Charcoal.copy(alpha = 0.1f)))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Box(modifier = Modifier.fillMaxWidth(0.6f).height(11.dp).clip(RoundedCornerShape(4.dp))
@@ -428,15 +566,22 @@ fun ActivityItem(
     dotColor: Color, title: String, subtitle: String, time: String,
     onClick: () -> Unit = {}
 ) {
-    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
-        .background(Color.White).clickable { onClick() }.padding(horizontal = 12.dp, vertical = 10.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
+            .background(Color.White).clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-                color = Charcoal, fontFamily = DmSansFamily, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
+            Text(
+                title, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = Charcoal, fontFamily = DmSansFamily,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(subtitle, fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (time.isNotEmpty()) Text(time, fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily)
     }
