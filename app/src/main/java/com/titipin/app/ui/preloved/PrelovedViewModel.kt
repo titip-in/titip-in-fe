@@ -2,13 +2,16 @@ package com.titipin.app.ui.preloved
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
+import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.PrelovedRepository
 import com.titipin.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -25,13 +28,24 @@ sealed class PrelovedActionState {
     data class Error(val message: String) : PrelovedActionState()
 }
 
+sealed class PrelovedCategoryState {
+    object Loading : PrelovedCategoryState()
+    data class Success(val data: List<CategoryDto>) : PrelovedCategoryState()
+    data class Error(val message: String) : PrelovedCategoryState()
+}
+
 @HiltViewModel
 class PrelovedViewModel @Inject constructor(
-    private val repository: PrelovedRepository
+    private val repository: PrelovedRepository,
+    private val categoryRepository: CategoryRepository,
+    private val dataStore: DataStoreManager
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<PrelovedListState>(PrelovedListState.Loading)
     val listState: StateFlow<PrelovedListState> = _listState.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _detailState = MutableStateFlow<PrelovedActionState>(PrelovedActionState.Idle)
     val detailState: StateFlow<PrelovedActionState> = _detailState.asStateFlow()
@@ -39,7 +53,20 @@ class PrelovedViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<PrelovedActionState>(PrelovedActionState.Idle)
     val actionState: StateFlow<PrelovedActionState> = _actionState.asStateFlow()
 
-    init { loadPrelovedList() }
+    private val _categoryState = MutableStateFlow<PrelovedCategoryState>(PrelovedCategoryState.Loading)
+    val categoryState: StateFlow<PrelovedCategoryState> = _categoryState.asStateFlow()
+
+    private val _selectedCategoryId = MutableStateFlow<Int?>(null)
+    val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
+
+    private val _currentUserId = MutableStateFlow<String?>(null)
+    val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
+    init {
+        loadPrelovedList()
+        loadCategories()
+        loadCurrentUser()
+    }
 
     fun loadPrelovedList() {
         viewModelScope.launch {
@@ -48,6 +75,17 @@ class PrelovedViewModel @Inject constructor(
                 is Result.Success -> PrelovedListState.Success(result.data)
                 is Result.Error   -> PrelovedListState.Error(result.message)
             }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            _listState.value = when (val result = repository.getPrelovedList()) {
+                is Result.Success -> PrelovedListState.Success(result.data)
+                is Result.Error   -> PrelovedListState.Error(result.message)
+            }
+            _isRefreshing.value = false
         }
     }
 
@@ -61,20 +99,69 @@ class PrelovedViewModel @Inject constructor(
         }
     }
 
+    fun loadCategories() {
+        viewModelScope.launch {
+            _categoryState.value = PrelovedCategoryState.Loading
+            _categoryState.value = when (val result = categoryRepository.getCategories("preloved")) {
+                is Result.Success -> PrelovedCategoryState.Success(result.data)
+                is Result.Error -> PrelovedCategoryState.Error(result.message)
+            }
+        }
+    }
+
+    fun selectCategory(categoryId: Int?) {
+        _selectedCategoryId.value = categoryId
+    }
+
+    private fun loadCurrentUser() {
+        viewModelScope.launch {
+            _currentUserId.value = dataStore.userId.firstOrNull()
+        }
+    }
+
     fun createPreloved(
+        categoryId: Int?,
         title: String,
         description: String?,
         price: Int,
-        category: String,
         condition: String,
-        imageUrl: String?
+        imageUrl: String
     ) {
         viewModelScope.launch {
             _actionState.value = PrelovedActionState.Loading
-            val request = CreatePrelovedRequest(title, description, price, category, condition, imageUrl)
+            val request = CreatePrelovedRequest(
+                categoryId = categoryId,
+                title = title,
+                description = description,
+                price = price,
+                condition = condition,
+                primaryImageUrl = imageUrl,
+                status = "AVAILABLE",
+                images = listOf(imageUrl)
+            )
             _actionState.value = when (val result = repository.createPreloved(request)) {
                 is Result.Success -> PrelovedActionState.Success(result.data)
                 is Result.Error   -> PrelovedActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun updateStatus(id: String, status: String) {
+        viewModelScope.launch {
+            _actionState.value = PrelovedActionState.Loading
+            _actionState.value = when (val result = repository.updateStatus(id, status)) {
+                is Result.Success -> PrelovedActionState.Success(result.data)
+                is Result.Error -> PrelovedActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun deletePreloved(id: String) {
+        viewModelScope.launch {
+            _actionState.value = PrelovedActionState.Loading
+            _actionState.value = when (val result = repository.deletePreloved(id)) {
+                is Result.Success -> PrelovedActionState.Success()
+                is Result.Error -> PrelovedActionState.Error(result.message)
             }
         }
     }

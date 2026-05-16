@@ -1,7 +1,5 @@
 package com.titipin.app.ui.preloved
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,13 +14,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.shared.openWhatsApp
+import com.titipin.app.shared.waMessagePreloved
+import com.titipin.app.ui.components.UserContactPanel
 import com.titipin.app.ui.theme.*
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -33,9 +37,25 @@ fun PrelovedDetailScreen(
     viewModel: PrelovedViewModel = hiltViewModel()
 ) {
     val detailState by viewModel.detailState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
+    val currentUserId by viewModel.currentUserId.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(prelovedId) { viewModel.loadDetail(prelovedId) }
+    LaunchedEffect(actionState) {
+        when (actionState) {
+            is PrelovedActionState.Success -> {
+                if ((actionState as PrelovedActionState.Success).data == null) {
+                    viewModel.resetActionState()
+                    onBack()
+                    return@LaunchedEffect
+                }
+                viewModel.resetActionState()
+                viewModel.loadDetail(prelovedId)
+            }
+            else -> Unit
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -63,11 +83,10 @@ fun PrelovedDetailScreen(
             }
             is PrelovedActionState.Success -> {
                 val item = state.data ?: return@Column
-                val initials = item.user.name.trim()
-                    .split(" ").filter { it.isNotBlank() }
-                    .take(2).joinToString("") { it.first().uppercase() }
-
-                val categoryEmoji = categoryEmojiFor(item.category)
+                val categoryLabel = item.category?.name ?: "Lainnya"
+                val categoryEmoji = item.category?.icon ?: categoryEmojiFor(categoryLabel)
+                val primaryImageUrl = item.primaryImageUrl()
+                val isOwner = currentUserId == item.userId?.toString()
 
                 val heroBg = when (item.condition) {
                     "NEW", "LIKE_NEW" -> SagePale
@@ -96,7 +115,16 @@ fun PrelovedDetailScreen(
                                 .background(heroBg),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(categoryEmoji, fontSize = 80.sp)
+                            if (primaryImageUrl.isNullOrBlank()) {
+                                Text(categoryEmoji, fontSize = 80.sp)
+                            } else {
+                                AsyncImage(
+                                    model = primaryImageUrl,
+                                    contentDescription = item.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                         }
                     }
 
@@ -194,40 +222,21 @@ fun PrelovedDetailScreen(
 
                     // Tags
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        PrelovedTag("$categoryEmoji ${item.category}")
+                        PrelovedTag("$categoryEmoji $categoryLabel")
                         if (item.status == "AVAILABLE") PrelovedTag("✓ Tersedia")
                         else if (item.status == "SOLD")  PrelovedTag("✕ Terjual")
+                        else if (item.status == "CLOSED") PrelovedTag("Ditutup")
                     }
 
-                    // Seller card + Lihat Profil
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.md))
-                            .background(CreamDark)
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp).clip(CircleShape).background(SagePale),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(initials, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Sage, fontFamily = DmSansFamily)
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.user.name.trim(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                            Text("⭐ — · Malang", fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
-                        }
-                        // Lihat Profil — nanti navigate ke ProfileScreen user lain
-                        Text(
-                            text = "Lihat Profil →",
-                            fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                            color = Terracotta, fontFamily = DmSansFamily,
-                            modifier = Modifier.clickable { /* TODO: navigate to seller profile */ }
-                        )
-                    }
+                    UserContactPanel(
+                        name = item.user.name,
+                        waNumber = item.user.waNumber,
+                        avatarUrl = item.user.avatarUrl,
+                        status = item.user.status,
+                        isOwner = isOwner,
+                        ownerLabel = "Ini barang Anda",
+                        message = waMessagePreloved(item.title, item.formattedPrice())
+                    )
 
                     // Deskripsi
                     if (!item.description.isNullOrEmpty()) {
@@ -244,6 +253,19 @@ fun PrelovedDetailScreen(
                         }
                     }
 
+                    if (isOwner) {
+                        PrelovedOwnerPanel(
+                            status = item.status,
+                            isLoading = actionState is PrelovedActionState.Loading,
+                            onMarkSold = { viewModel.updateStatus(item.id, "SOLD") },
+                            onToggleClosed = {
+                                val nextStatus = if (item.status == "CLOSED") "AVAILABLE" else "CLOSED"
+                                viewModel.updateStatus(item.id, nextStatus)
+                            },
+                            onDelete = { viewModel.deletePreloved(item.id) }
+                        )
+                    }
+
                     Spacer(Modifier.height(Spacing.md))
                 }
 
@@ -257,11 +279,13 @@ fun PrelovedDetailScreen(
                 ) {
                     Button(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${item.user.waNumber}"))
-                            context.startActivity(intent)
+                            openWhatsApp(
+                                context, item.user.waNumber,
+                                waMessagePreloved(item.title, item.formattedPrice())
+                            )
                         },
                         modifier = Modifier.fillMaxWidth().height(ComponentSize.buttonHeight),
-                        enabled = item.status == "AVAILABLE",
+                        enabled = !isOwner && item.status == "AVAILABLE" && item.user.waNumber.isNotBlank(),
                         shape   = RoundedCornerShape(Radius.full),
                         colors  = ButtonDefaults.buttonColors(
                             containerColor         = Terracotta,
@@ -271,7 +295,7 @@ fun PrelovedDetailScreen(
                         )
                     ) {
                         Text(
-                            text = if (item.status == "AVAILABLE") "💬 Chat via WhatsApp" else "Barang tidak tersedia",
+                            text = if (isOwner) "Ini barang Anda" else if (item.status == "AVAILABLE") "💬 Chat via WhatsApp" else "Barang tidak tersedia",
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily
                         )
                     }
@@ -290,5 +314,87 @@ private fun PrelovedTag(text: String) {
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Text(text, fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+    }
+}
+
+@Composable
+private fun PrelovedOwnerPanel(
+    status: String,
+    isLoading: Boolean,
+    onMarkSold: () -> Unit,
+    onToggleClosed: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .background(CreamDark)
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "KELOLA BARANG",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = Charcoal60,
+            fontFamily = DmSansFamily
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onMarkSold,
+                enabled = !isLoading && status != "SOLD",
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal, contentColor = Cream)
+            ) {
+                Text("Terjual", fontFamily = DmSansFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            OutlinedButton(
+                onClick = onToggleClosed,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text(
+                    text = if (status == "CLOSED") "Buka" else "Tutup",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    color = Terracotta
+                )
+            }
+        }
+        OutlinedButton(
+            onClick = { showDeleteConfirm = true },
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radius.full)
+        ) {
+            Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Hapus barang?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Barang yang dihapus tidak bisa dikembalikan.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                }) {
+                    Text("Hapus", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Batal", color = Charcoal60, fontFamily = DmSansFamily)
+                }
+            }
+        )
     }
 }

@@ -20,47 +20,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.titipin.app.data.model.CategoryDto
 import com.titipin.app.ui.auth.TitipinTextField
 import com.titipin.app.ui.jastip.FormLabel
 import com.titipin.app.ui.theme.*
 
-// Label pill → value BE (tanpa emoji)
-private val wantedCategoryValues = mapOf(
-    "Sepatu"     to "SEPATU",
-    "Fashion"    to "FASHION",
-    "Gadget"     to "GADGET",
-    "Buku"       to "BUKU",
-    "Elektronik" to "ELEKTRONIK",
-    "Olahraga"   to "OLAHRAGA",
-    "Furniture"  to "FURNITURE",
-    "Lainnya"    to "LAINNYA"
-)
-
-// Pasangan emoji + label untuk ditampilkan di pill
-private val wantedCategories = listOf(
-    "👟" to "Sepatu",
-    "👗" to "Fashion",
-    "📱" to "Gadget",
-    "📚" to "Buku",
-    "💻" to "Elektronik",
-    "⚽" to "Olahraga",
-    "🪑" to "Furniture",
-    "📦" to "Lainnya"
-)
-
 @Composable
-fun WantedFormContent(
-    viewModel: WantedViewModel,
+fun PrelovedRequestFormContent(
+    viewModel: PrelovedRequestViewModel,
     onDismiss: () -> Unit
 ) {
     val actionState by viewModel.actionState.collectAsState()
-    val isLoading = actionState is WantedActionState.Loading
+    val categoryState by viewModel.categoryState.collectAsState()
+    val isLoading = actionState is PrelovedRequestActionState.Loading
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    var title          by remember { mutableStateOf("") }
-    var description    by remember { mutableStateOf("") }
-    var maxPriceStr    by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("") }
+    var title            by remember { mutableStateOf("") }
+    var description      by remember { mutableStateOf("") }
+    var maxPriceStr      by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<CategoryDto?>(null) }
 
     Column(
         modifier = Modifier
@@ -129,7 +107,7 @@ fun WantedFormContent(
             ) {
                 Text("🔍", fontSize = 14.sp)
                 Text(
-                    text = "Punya barang yang cocok dengan request orang lain? Kamu bisa langsung hubungi mereka!",
+                    text = "Punya barang yang cocok? Penjual bisa langsung menghubungimu via WhatsApp!",
                     fontFamily = DmSansFamily,
                     fontSize = 12.sp,
                     color = Charcoal,
@@ -137,7 +115,7 @@ fun WantedFormContent(
                 )
             }
 
-            // Nama barang
+            // Nama barang (wajib)
             TitipinTextField(
                 label         = "Nama Barang yang Dicari",
                 value         = title,
@@ -153,7 +131,7 @@ fun WantedFormContent(
                 placeholder   = "Contoh: kondisi minimal bagus, RAM 8GB"
             )
 
-            // Budget
+            // Budget maksimal
             TitipinTextField(
                 label         = "Budget Maksimal (opsional)",
                 value         = maxPriceStr,
@@ -162,19 +140,41 @@ fun WantedFormContent(
                 keyboardType  = KeyboardType.Number
             )
 
-            // Kategori
-            FormLabel("Kategori (opsional)")
-            FlowRowCategories(
-                categories = wantedCategories,
-                selected   = selectedCategory,
-                onSelect   = { label ->
-                    selectedCategory = if (selectedCategory == label) "" else label
+            // Kategori dari API
+            if (categoryState is PrelovedRequestCategoryState.Success) {
+                val categories = (categoryState as PrelovedRequestCategoryState.Success).data
+                FormLabel("Kategori (opsional)")
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement   = Arrangement.spacedBy(6.dp)
+                ) {
+                    categories.forEach { cat ->
+                        val isSelected = selectedCategory?.id == cat.id
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(Radius.full))
+                                .background(if (isSelected) Charcoal else CreamDark)
+                                .clickable {
+                                    selectedCategory = if (isSelected) null else cat
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                text = "${cat.icon ?: "📦"} ${cat.name}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = DmSansFamily,
+                                color = if (isSelected) Cream else Charcoal60
+                            )
+                        }
+                    }
                 }
-            )
+            }
 
-            if (actionState is WantedActionState.Error) {
+            if (actionState is PrelovedRequestActionState.Error) {
                 Text(
-                    text = (actionState as WantedActionState.Error).message,
+                    text = (actionState as PrelovedRequestActionState.Error).message,
                     color = Terracotta,
                     fontSize = 12.sp,
                     fontFamily = DmSansFamily
@@ -224,19 +224,17 @@ fun WantedFormContent(
 
     // ── Dialog Konfirmasi ─────────────────────────────────────────
     if (showConfirmDialog) {
-        WantedConfirmDialog(
+        PrelovedRequestConfirmDialog(
             title       = title.trim(),
             maxPriceStr = maxPriceStr.ifBlank { null },
-            category    = selectedCategory.ifBlank { null },
+            categoryName = selectedCategory?.name,
             onConfirm   = {
                 showConfirmDialog = false
-                viewModel.createWanted(
+                viewModel.createPrelovedRequest(
+                    categoryId  = selectedCategory?.id,
                     title       = title.trim(),
                     description = description.trim().ifBlank { null },
-                    maxPrice    = maxPriceStr.toDoubleOrNull(),
-                    // Translate label → BE value, fallback uppercase kalau tidak ada di map
-                    category    = selectedCategory.ifBlank { null }
-                        ?.let { wantedCategoryValues[it] ?: it.uppercase() }
+                    maxPrice    = maxPriceStr.toIntOrNull()
                 )
             },
             onDismiss = { showConfirmDialog = false }
@@ -244,46 +242,12 @@ fun WantedFormContent(
     }
 }
 
-// ── Reusable category pill row ─────────────────────────────────────
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+// ── Dialog Konfirmasi Preloved Request ─────────────────────────────────────
 @Composable
-private fun FlowRowCategories(
-    categories: List<Pair<String, String>>,  // emoji to label
-    selected: String,                         // hanya label (tanpa emoji)
-    onSelect: (String) -> Unit               // returns label saja
-) {
-    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        categories.forEach { (emoji, label) ->
-            val isSelected = selected == label
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.full))
-                    .background(if (isSelected) Charcoal else CreamDark)
-                    .clickable { onSelect(label) }
-                    .padding(horizontal = 12.dp, vertical = 7.dp)
-            ) {
-                Text(
-                    text = "$emoji $label",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = DmSansFamily,
-                    color = if (isSelected) Cream else Charcoal60
-                )
-            }
-        }
-    }
-}
-
-// ── Dialog Konfirmasi Wanted ───────────────────────────────────────
-@Composable
-fun WantedConfirmDialog(
+fun PrelovedRequestConfirmDialog(
     title: String,
     maxPriceStr: String?,
-    category: String?,
+    categoryName: String?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -331,15 +295,15 @@ fun WantedConfirmDialog(
                     .padding(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                WantedConfirmRow(label = "Barang", value = title)
+                PrelovedRequestConfirmRow(label = "Barang", value = title)
                 if (!maxPriceStr.isNullOrEmpty()) {
                     val formatted = maxPriceStr.toLongOrNull()?.let {
                         "Rp " + it.toString().reversed().chunked(3).joinToString(".").reversed()
                     } ?: maxPriceStr
-                    WantedConfirmRow(label = "Budget", value = "~$formatted")
+                    PrelovedRequestConfirmRow(label = "Budget", value = "~$formatted")
                 }
-                if (!category.isNullOrEmpty()) {
-                    WantedConfirmRow(label = "Kategori", value = category)
+                if (!categoryName.isNullOrEmpty()) {
+                    PrelovedRequestConfirmRow(label = "Kategori", value = categoryName)
                 }
             }
         },
@@ -369,7 +333,7 @@ fun WantedConfirmDialog(
 }
 
 @Composable
-private fun WantedConfirmRow(label: String, value: String) {
+private fun PrelovedRequestConfirmRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

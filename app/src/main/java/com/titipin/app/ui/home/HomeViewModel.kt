@@ -25,8 +25,14 @@ data class HomeUiState(
     val recentJastip: List<JastipDto> = emptyList(),
     val recentPreloved: List<PrelovedDto> = emptyList(),
     val requestCount: Int = 0,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val searchQuery: String = "",
+    val searchJastip: List<JastipDto> = emptyList(),
+    val searchPreloved: List<PrelovedDto> = emptyList(),
 )
+
+val HomeUiState.isSearchActive get() = searchQuery.isNotBlank()
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -48,10 +54,7 @@ class HomeViewModel @Inject constructor(
                 .split(" ").filter { it.isNotBlank() }
                 .take(2).joinToString("") { it.first().uppercase() }
 
-            _uiState.value = _uiState.value.copy(
-                userName     = name,
-                userInitials = initials
-            )
+            _uiState.value = _uiState.value.copy(userName = name, userInitials = initials)
 
             val jastipResult   = jastipRepository.getJastipList()
             val prelovedResult = prelovedRepository.getPrelovedList()
@@ -70,5 +73,42 @@ class HomeViewModel @Inject constructor(
                 isLoading      = false
             )
         }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshing = true)
+            loadData()
+            _uiState.value = _uiState.value.copy(isRefreshing = false)
+        }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        if (query.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                searchJastip = emptyList(), searchPreloved = emptyList()
+            )
+            return
+        }
+        val q = query.trim().lowercase()
+        _uiState.value = _uiState.value.copy(
+            searchJastip = _uiState.value.allJastip.filter {
+                it.fromLocation.lowercase().contains(q) ||
+                        it.toLocation.lowercase().contains(q) ||
+                        (it.notes?.lowercase()?.contains(q) == true)
+            },
+            searchPreloved = _uiState.value.allPreloved.filter {
+                it.title.lowercase().contains(q) ||
+                        (it.category?.name?.lowercase()?.contains(q) == true) ||
+                        (it.description?.lowercase()?.contains(q) == true)
+            }
+        )
+    }
+
+    fun clearSearch() {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = "", searchJastip = emptyList(), searchPreloved = emptyList()
+        )
     }
 }

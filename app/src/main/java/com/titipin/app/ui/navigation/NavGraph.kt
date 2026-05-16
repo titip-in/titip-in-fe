@@ -1,5 +1,6 @@
 package com.titipin.app.ui.navigation
 
+
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,13 +21,17 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
+import com.titipin.app.navigation.Routes
 import com.titipin.app.ui.auth.LoginScreen
 import com.titipin.app.ui.auth.RegisterScreen
 import com.titipin.app.ui.home.HomeScreen
 import com.titipin.app.ui.jastip.JastipDetailScreen
+import com.titipin.app.ui.jastip.JastipOfferScreen
 import com.titipin.app.ui.jastip.JastipRequestDetailScreen
 import com.titipin.app.ui.jastip.JastipScreen
+import com.titipin.app.ui.onboarding.OnboardingScreen
 import com.titipin.app.ui.preloved.PrelovedDetailScreen
+import com.titipin.app.ui.preloved.PrelovedRequestDetailScreen
 import com.titipin.app.ui.preloved.PrelovedScreen
 import com.titipin.app.ui.profile.JastipSayaScreen
 import com.titipin.app.ui.profile.PengaturanScreen
@@ -56,15 +61,18 @@ val bottomNavItems = listOf(
 // Bottom nav disembunyikan hanya di auth screens dan detail screens
 val routesWithoutBottomNav = listOf(
     Routes.SPLASH,
+    Routes.ONBOARDING,
     Routes.LOGIN,
     Routes.REGISTER,
     Routes.JASTIP_DETAIL_PATTERN,
     Routes.JASTIP_REQUEST_DETAIL_PATTERN,
     Routes.PRELOVED_DETAIL_PATTERN,
+    Routes.PRELOVED_REQUEST_DETAIL_PATTERN,
     Routes.JASTIP_SAYA,
     Routes.PRELOVED_SAYA,
     Routes.REVIEW_RATING,
     Routes.PENGATURAN,
+    Routes.JASTIP_OFFER_PATTERN,
 )
 
 @Composable
@@ -99,6 +107,21 @@ fun TitipinNavGraph() {
                     onNavigateToLogin = {
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    },
+                    onNavigateToOnboarding = {
+                        navController.navigate(Routes.ONBOARDING) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.ONBOARDING) {
+                OnboardingScreen(
+                    onFinish = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.ONBOARDING) { inclusive = true }
                         }
                     }
                 )
@@ -135,6 +158,9 @@ fun TitipinNavGraph() {
                 PrelovedScreen(
                     onNavigateToDetail = { id ->
                         navController.navigate(Routes.prelovedDetail(id))
+                    },
+                    onNavigateToRequestDetail = { id ->
+                        navController.navigate(Routes.prelovedRequestDetail(id))
                     }
                 )
             }
@@ -181,7 +207,32 @@ fun TitipinNavGraph() {
                     },
                     onNavigateToRequestDetail = { id ->
                         navController.navigate(Routes.jastipRequestDetail(id))
+                    },
+                    onNavigateToOffer = { from, to, name, notes ->
+                        navController.navigate(Routes.jastipOffer(from, to, name, notes))
                     }
+                )
+            }
+
+            composable(
+                route = Routes.JASTIP_OFFER_PATTERN,
+                arguments = listOf(
+                    androidx.navigation.navArgument("from")  { defaultValue = "" },
+                    androidx.navigation.navArgument("to")    { defaultValue = "" },
+                    androidx.navigation.navArgument("name")  { defaultValue = "" },
+                    androidx.navigation.navArgument("notes") { defaultValue = "" },
+                )
+            ) { backStackEntry ->
+                val from  = backStackEntry.arguments?.getString("from")  ?: ""
+                val to    = backStackEntry.arguments?.getString("to")    ?: ""
+                val name  = backStackEntry.arguments?.getString("name")  ?: ""
+                val notes = backStackEntry.arguments?.getString("notes") ?: ""
+                JastipOfferScreen(
+                    fromLocation   = from,
+                    toLocation     = to,
+                    requesterName  = name,
+                    notes          = notes.ifEmpty { null },
+                    onBack         = { navController.popBackStack() }
                 )
             }
 
@@ -205,6 +256,14 @@ fun TitipinNavGraph() {
                 val id = backStackEntry.arguments?.getString("id") ?: return@composable
                 PrelovedDetailScreen(
                     prelovedId = id,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.PRELOVED_REQUEST_DETAIL_PATTERN) { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id") ?: return@composable
+                PrelovedRequestDetailScreen(
+                    requestId = id,
                     onBack = { navController.popBackStack() }
                 )
             }

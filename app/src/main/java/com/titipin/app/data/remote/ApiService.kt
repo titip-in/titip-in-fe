@@ -57,27 +57,31 @@ interface ApiService {
     suspend fun deleteJastip(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ── PRELOVED ──────────────────────────────────────────────────
-    @GET("preloved")
+    @GET("v1/preloved/listings")
     suspend fun getPrelovedList(): Response<ApiResponse<List<PrelovedDto>>>
 
-    @GET("preloved")
-    suspend fun getMyPrelovedList(
-        @Query("userId") userId: String
-    ): Response<ApiResponse<List<PrelovedDto>>>
+    @GET("v1/me/preloved/listings")
+    suspend fun getMyPrelovedList(): Response<ApiResponse<PaginatedResponse<PrelovedDto>>>
 
-    @GET("preloved/{id}")
+    @GET("v1/preloved/listings/{id}")
     suspend fun getPrelovedDetail(@Path("id") id: String): Response<ApiResponse<PrelovedDto>>
 
-    @POST("preloved")
+    @POST("v1/preloved/listings")
     suspend fun createPreloved(@Body request: CreatePrelovedRequest): Response<ApiResponse<PrelovedDto>>
 
-    @PUT("preloved/{id}")
+    @PUT("v1/preloved/listings/{id}")
     suspend fun updatePrelovedStatus(
         @Path("id") id: String,
         @Body request: UpdatePrelovedStatusRequest
     ): Response<ApiResponse<PrelovedDto>>
 
-    @DELETE("preloved/{id}")
+    @PUT("v1/preloved/listings/{id}")
+    suspend fun updatePreloved(
+        @Path("id") id: String,
+        @Body request: UpdatePrelovedListingRequest
+    ): Response<ApiResponse<PrelovedDto>>
+
+    @DELETE("v1/preloved/listings/{id}")
     suspend fun deletePreloved(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ── REQUESTS (Cari Jastip) ────────────────────────────────────
@@ -102,13 +106,25 @@ interface ApiService {
     @DELETE("v1/jastip/requests/{id}")
     suspend fun deleteRequest(@Path("id") id: String): Response<ApiResponse<Unit>>
 
-    // ── WANTED (Barang Dicari) ────────────────────────────────────
-    @GET("wanted")
-    suspend fun getWantedList(): Response<ApiResponse<List<WantedDto>>>
+    // ── PRELOVED REQUESTS (Barang Dicari) ────────────────────────
+    @GET("v1/preloved/requests")
+    suspend fun getPrelovedRequestList(): Response<ApiResponse<List<PrelovedRequestDto>>>
 
-    @POST("wanted")
-    suspend fun createWanted(@Body body: CreateWantedBody): Response<ApiResponse<WantedDto>>
+    @GET("v1/me/preloved/requests")
+    suspend fun getMyPrelovedRequestList(): Response<ApiResponse<PaginatedResponse<PrelovedRequestDto>>>
 
-    @PUT("wanted/{id}/fulfill")
-    suspend fun fulfillWanted(@Path("id") id: String): Response<ApiResponse<FulfillWantedResponse>>
+    @GET("v1/preloved/requests/{id}")
+    suspend fun getPrelovedRequestDetail(@Path("id") id: String): Response<ApiResponse<PrelovedRequestDto>>
+
+    @POST("v1/preloved/requests")
+    suspend fun createPrelovedRequest(@Body body: CreatePrelovedRequestBody): Response<ApiResponse<PrelovedRequestDto>>
+
+    @PUT("v1/preloved/requests/{id}")
+    suspend fun updatePrelovedRequest(
+        @Path("id") id: String,
+        @Body body: UpdatePrelovedRequestBody
+    ): Response<ApiResponse<PrelovedRequestDto>>
+
+    @DELETE("v1/preloved/requests/{id}")
+    suspend fun deletePrelovedRequest(@Path("id") id: String): Response<ApiResponse<Unit>>
 }

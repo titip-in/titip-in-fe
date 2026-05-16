@@ -144,7 +144,7 @@ fun PrelovedSayaScreen(
                     val filteredData = if (selectedTab == 0)
                         allData.filter { it.status == "AVAILABLE" }
                     else
-                        allData.filter { it.status == "SOLD" || it.status == "RESERVED" }
+                        allData.filter { it.status == "SOLD" || it.status == "CLOSED" }
 
                     val isActionLoading = actionState is PrelovedSayaActionState.Loading
 
@@ -219,7 +219,7 @@ private fun PrelovedSayaCard(
                     .background(TerracottaPale),
                 contentAlignment = Alignment.Center
             ) {
-                Text(categoryEmojiForPreloved(item.category), fontSize = 26.sp)
+                Text(categoryEmojiForPreloved(item.category?.name), fontSize = 26.sp)
             }
 
             Spacer(Modifier.width(Spacing.md))
@@ -252,7 +252,7 @@ private fun PrelovedSayaCard(
                             when (item.status) {
                                 "AVAILABLE" -> "DIJUAL"
                                 "SOLD"      -> "TERJUAL"
-                                else        -> "RESERVED"
+                                else        -> "DITUTUP"
                             },
                             fontSize = 8.sp, fontWeight = FontWeight.Bold,
                             letterSpacing = 0.8.sp,
@@ -270,7 +270,7 @@ private fun PrelovedSayaCard(
                 Text(item.formattedPrice(), fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = Terracotta, fontFamily = DmSansFamily)
                 Spacer(Modifier.height(2.dp))
-                Text("${item.conditionLabel()} · ${timeAgo(item.createdAt)}",
+                Text("${item.conditionLabel()} · ${timeAgo(item.createdAt ?: item.updatedAt.orEmpty())}",
                     fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
 
                 Spacer(Modifier.height(8.dp))
@@ -345,7 +345,7 @@ private fun PrelovedSayaCard(
     }
 }
 
-private fun categoryEmojiForPreloved(category: String): String = when (category.uppercase().trim()) {
+private fun categoryEmojiForPreloved(category: String?): String = when (category.orEmpty().uppercase().trim()) {
     "SEPATU"     -> "👟"
     "FASHION"    -> "👗"
     "GADGET"     -> "📱"

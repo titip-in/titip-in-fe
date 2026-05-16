@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.theme.*
 
 private val CONDITIONS = listOf(
@@ -32,45 +33,25 @@ private val CONDITIONS = listOf(
     "FAIR"     to "Layak"
 )
 
-private val CATEGORIES = listOf(
-    "👟" to "Sepatu",
-    "👗" to "Fashion",
-    "📱" to "Gadget",
-    "📚" to "Buku",
-    "💻" to "Elektronik",
-    "⚽" to "Olahraga",
-    "🪑" to "Furniture",
-    "📦" to "Lainnya"
-)
-
-private val categoryValues = mapOf(
-    "Sepatu"     to "SEPATU",
-    "Fashion"    to "FASHION",
-    "Gadget"     to "GADGET",
-    "Buku"       to "BUKU",
-    "Elektronik" to "ELEKTRONIK",
-    "Olahraga"   to "OLAHRAGA",
-    "Furniture"  to "FURNITURE",
-    "Lainnya"    to "LAINNYA"
-)
-
 @Composable
 fun PrelovedFormContent(
     viewModel: PrelovedViewModel,
     onDismiss: () -> Unit
 ) {
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val isLoading = actionState is PrelovedActionState.Loading
     var showConfirmDialog by remember { mutableStateOf(false) }
 
+    var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
     var title        by remember { mutableStateOf("") }
     var description  by remember { mutableStateOf("") }
     var priceStr     by remember { mutableStateOf("") }
     var selectedCond by remember { mutableStateOf("") }
-    var selectedCat  by remember { mutableStateOf("") }
+    var imageUrl     by remember { mutableStateOf("") }
 
     val formValid = title.isNotEmpty() && priceStr.isNotEmpty() &&
-            selectedCond.isNotEmpty() && selectedCat.isNotEmpty()
+            selectedCond.isNotEmpty() && imageUrl.isNotBlank()
 
     // ── Root: Column dengan fillMaxHeight biar tombol tidak hilang ─
     Column(
@@ -116,25 +97,23 @@ fun PrelovedFormContent(
                 .padding(top = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            // ── FOTO UPLOAD ───────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(CreamDark)
-                    .border(2.dp, Charcoal30, RoundedCornerShape(Radius.lg))
-                    .padding(vertical = 24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("📷", fontSize = 28.sp)
-                    Text("Tambah Foto", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                    Text("Max 5 foto · JPG, PNG", fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
-                }
-            }
+            FormFieldLabel("URL FOTO UTAMA")
+            OutlinedTextField(
+                value = imageUrl,
+                onValueChange = { imageUrl = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("https://.../foto-barang.jpg", fontSize = 13.sp, color = Charcoal30, fontFamily = DmSansFamily) },
+                textStyle = TextStyle(fontSize = 13.sp, fontFamily = DmSansFamily, color = Charcoal),
+                singleLine = true,
+                shape = RoundedCornerShape(Radius.md),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (imageUrl.isNotBlank()) Sage else Terracotta,
+                    unfocusedBorderColor = if (imageUrl.isNotBlank()) Sage else Charcoal10,
+                    focusedContainerColor = CreamDark,
+                    unfocusedContainerColor = CreamDark,
+                    cursorColor = Terracotta
+                )
+            )
 
             // ── NAMA BARANG ───────────────────────────────────────
             FormFieldLabel("NAMA BARANG")
@@ -225,34 +204,14 @@ fun PrelovedFormContent(
 
             // ── KATEGORI ──────────────────────────────────────────
             FormFieldLabel("KATEGORI")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement   = Arrangement.spacedBy(6.dp)
-            ) {
-                CATEGORIES.forEach { (emoji, label) ->
-                    val isSelected = selectedCat == label
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.full))
-                            .background(if (isSelected) TerracottaPale else CreamDark)
-                            .border(
-                                1.dp,
-                                if (isSelected) Terracotta else CreamDark,
-                                RoundedCornerShape(Radius.full)
-                            )
-                            .clickable { selectedCat = label }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "$emoji $label",
-                            fontSize = 10.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isSelected) Terracotta else Charcoal60,
-                            fontFamily = DmSansFamily
-                        )
-                    }
-                }
+            if (categoryState is PrelovedCategoryState.Success) {
+                CategoryChipRow(
+                    categories = (categoryState as PrelovedCategoryState.Success).data,
+                    selectedCategoryId = selectedCategoryId,
+                    onCategorySelected = { selectedCategoryId = it }
+                )
+            } else {
+                Text("Kategori belum termuat", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
             }
 
             // ── DESKRIPSI ─────────────────────────────────────────
@@ -321,16 +280,19 @@ fun PrelovedFormContent(
             title     = title.trim(),
             price     = priceFormatted,
             condition = selectedCond,
-            category  = selectedCat,
+            category  = (categoryState as? PrelovedCategoryState.Success)
+                ?.data
+                ?.firstOrNull { it.id == selectedCategoryId }
+                ?.name ?: "Tanpa kategori",
             onConfirm = {
                 showConfirmDialog = false
                 viewModel.createPreloved(
+                    categoryId   = selectedCategoryId,
                     title       = title,
                     description = description.ifEmpty { null },
                     price       = priceStr.toIntOrNull() ?: 0,
-                    category    = categoryValues[selectedCat] ?: selectedCat.uppercase(),
                     condition   = selectedCond,
-                    imageUrl    = null
+                    imageUrl    = imageUrl.trim()
                 )
             },
             onDismiss = { showConfirmDialog = false }

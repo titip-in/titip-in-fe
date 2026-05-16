@@ -1,12 +1,9 @@
 package com.titipin.app.ui.preloved
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -15,40 +12,49 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.titipin.app.data.model.PrelovedDto
-import com.titipin.app.data.model.WantedDto
+import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
-import com.titipin.app.shared.timeAgo
+import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.shared.TitipinPullRefresh
+import com.titipin.app.shared.openWhatsApp
+import com.titipin.app.shared.waMessageWanted
+import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 private val cardBgColors = listOf(TerracottaPale, SagePale, GoldPale, CreamDark)
 
-// Filter pills sesuai design system
-private val categoryFilters = listOf("Semua", "👟 Sepatu", "👗 Fashion", "📱 Gadget", "📚 Buku", "💻 Elektronik", "⚽ Olahraga", "🪑 Furniture", "📦 Lainnya")
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrelovedScreen(
     onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToRequestDetail: (String) -> Unit = {},
     viewModel: PrelovedViewModel = hiltViewModel(),
-    wantedViewModel: WantedViewModel = hiltViewModel()
+    prelovedRequestViewModel: PrelovedRequestViewModel = hiltViewModel()
 ) {
-    val listState   by viewModel.listState.collectAsState()
-    val actionState by viewModel.actionState.collectAsState()
+    val listState              by viewModel.listState.collectAsState()
+    val actionState            by viewModel.actionState.collectAsState()
+    val isPrelovedRefreshing   by viewModel.isRefreshing.collectAsState()
+    val categoryState          by viewModel.categoryState.collectAsState()
+    val selectedCategoryId     by viewModel.selectedCategoryId.collectAsState()
 
-    val wantedListState   by wantedViewModel.listState.collectAsState()
-    val wantedActionState by wantedViewModel.actionState.collectAsState()
+    val requestListState       by prelovedRequestViewModel.listState.collectAsState()
+    val requestActionState     by prelovedRequestViewModel.actionState.collectAsState()
+    val isRequestRefreshing    by prelovedRequestViewModel.isRefreshing.collectAsState()
+    val requestCategoryState   by prelovedRequestViewModel.categoryState.collectAsState()
+    val requestSelectedCatId   by prelovedRequestViewModel.selectedCategoryId.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -57,8 +63,8 @@ fun PrelovedScreen(
     var showPrelovedSheet  by remember { mutableStateOf(false) }
 
     // Sheet tab Dicari
-    val wantedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var showWantedSheet  by remember { mutableStateOf(false) }
+    val requestSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showRequestSheet  by remember { mutableStateOf(false) }
 
     val scope   = rememberCoroutineScope()
     val context = LocalContext.current
@@ -74,26 +80,14 @@ fun PrelovedScreen(
         }
     }
 
-    // Handle wanted action states
-    LaunchedEffect(wantedActionState) {
-        when (wantedActionState) {
-            is WantedActionState.Success -> {
-                scope.launch { wantedSheetState.hide() }.invokeOnCompletion {
-                    showWantedSheet = false
-                    wantedViewModel.resetActionState()
-                    wantedViewModel.loadWantedList()
-                }
+    // Tutup sheet dicari setelah sukses post
+    LaunchedEffect(requestActionState) {
+        if (requestActionState is PrelovedRequestActionState.Success) {
+            scope.launch { requestSheetState.hide() }.invokeOnCompletion {
+                showRequestSheet = false
+                prelovedRequestViewModel.resetActionState()
+                prelovedRequestViewModel.loadPrelovedRequestList()
             }
-            is WantedActionState.FulfillSuccess -> {
-                // Refresh list + buka WA ke pencari
-                val waNumber = (wantedActionState as WantedActionState.FulfillSuccess)
-                    .result.wantedItem.user.waNumber
-                wantedViewModel.resetActionState()
-                wantedViewModel.loadWantedList()
-                val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/$waNumber".toUri())
-                context.startActivity(intent)
-            }
-            else -> {}
         }
     }
 
@@ -144,13 +138,37 @@ fun PrelovedScreen(
             Spacer(Modifier.height(Spacing.md))
 
             when (selectedTab) {
-                0 -> PrelovedDijualContent(listState, onNavigateToDetail) { viewModel.loadPrelovedList() }
-                1 -> PrelovedDicariContent(
-                    listState   = wantedListState,
-                    actionState = wantedActionState,
-                    onFulfill   = { id -> wantedViewModel.fulfillWanted(id) },
-                    onRetry     = { wantedViewModel.loadWantedList() }
-                )
+                0 -> TitipinPullRefresh(
+                    isRefreshing = isPrelovedRefreshing,
+                    onRefresh    = { viewModel.refresh() },
+                    modifier     = Modifier.weight(1f)
+                ) {
+                    PrelovedDijualContent(
+                        listState          = listState,
+                        categoryState      = categoryState,
+                        selectedCategoryId = selectedCategoryId,
+                        onCategorySelected = viewModel::selectCategory,
+                        onCardClick        = onNavigateToDetail,
+                        onRetry            = { viewModel.loadPrelovedList() }
+                    )
+                }
+                1 -> TitipinPullRefresh(
+                    isRefreshing = isRequestRefreshing,
+                    onRefresh    = { prelovedRequestViewModel.refresh() },
+                    modifier     = Modifier.weight(1f)
+                ) {
+                    PrelovedDicariContent(
+                        listState          = requestListState,
+                        categoryState      = requestCategoryState,
+                        selectedCategoryId = requestSelectedCatId,
+                        onCategorySelected = prelovedRequestViewModel::selectCategory,
+                        onRetry            = { prelovedRequestViewModel.loadPrelovedRequestList() },
+                        onCardClick        = onNavigateToRequestDetail,
+                        onContactWhatsApp  = { waNumber, title ->
+                            openWhatsApp(context, waNumber, waMessageWanted(title))
+                        }
+                    )
+                }
             }
         }
 
@@ -165,7 +183,7 @@ fun PrelovedScreen(
                 .background(Terracotta)
                 .clickable {
                     if (selectedTab == 0) showPrelovedSheet = true
-                    else showWantedSheet = true
+                    else showRequestSheet = true
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -193,18 +211,18 @@ fun PrelovedScreen(
     }
 
     // ── BOTTOM SHEET: Cari Barang ─────────────────────────────────
-    if (showWantedSheet) {
+    if (showRequestSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showWantedSheet = false; wantedViewModel.resetActionState() },
-            sheetState = wantedSheetState,
+            onDismissRequest = { showRequestSheet = false; prelovedRequestViewModel.resetActionState() },
+            sheetState = requestSheetState,
             containerColor = Cream
         ) {
-            WantedFormContent(
-                viewModel = wantedViewModel,
+            PrelovedRequestFormContent(
+                viewModel = prelovedRequestViewModel,
                 onDismiss = {
-                    scope.launch { wantedSheetState.hide() }.invokeOnCompletion {
-                        showWantedSheet = false
-                        wantedViewModel.resetActionState()
+                    scope.launch { requestSheetState.hide() }.invokeOnCompletion {
+                        showRequestSheet = false
+                        prelovedRequestViewModel.resetActionState()
                     }
                 }
             )
@@ -216,11 +234,12 @@ fun PrelovedScreen(
 @Composable
 fun PrelovedDijualContent(
     listState: PrelovedListState,
+    categoryState: PrelovedCategoryState,
+    selectedCategoryId: Int?,
+    onCategorySelected: (Int?) -> Unit,
     onCardClick: (String) -> Unit,
     onRetry: () -> Unit
 ) {
-    var selectedFilter by remember { mutableStateOf("Semua") }
-
     when (listState) {
         is PrelovedListState.Loading -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -241,49 +260,18 @@ fun PrelovedDijualContent(
             }
         }
         is PrelovedListState.Success -> {
-            Column {
-                // ── CATEGORY FILTER PILLS ─────────────────────────
-                Row(
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = Spacing.lg)
-                        .padding(bottom = Spacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    categoryFilters.forEach { filter ->
-                        val isSelected = selectedFilter == filter
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(Radius.full))
-                                .background(if (isSelected) Charcoal else CreamDark)
-                                .clickable { selectedFilter = filter }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                filter, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                                fontFamily = DmSansFamily,
-                                color = if (isSelected) Cream else Charcoal60
-                            )
-                        }
-                    }
-                }
+            val filteredData = selectedCategoryId?.let { selected ->
+                listState.data.filter { it.categoryId == selected }
+            } ?: listState.data
 
-                // Filter client-side — mapping pill label -> BE category value
-                val filterMapping = mapOf(
-                    "👟 Sepatu"     to "SEPATU",
-                    "👗 Fashion"    to "FASHION",
-                    "📱 Gadget"     to "GADGET",
-                    "📚 Buku"       to "BUKU",
-                    "💻 Elektronik" to "ELEKTRONIK",
-                    "⚽ Olahraga"   to "OLAHRAGA",
-                    "🪑 Furniture"  to "FURNITURE",
-                    "📦 Lainnya"    to "LAINNYA"
-                )
-                val filteredData = if (selectedFilter == "Semua") {
-                    listState.data
-                } else {
-                    val beCategory = filterMapping[selectedFilter]
-                    listState.data.filter { it.category.uppercase() == beCategory }
+            Column {
+                if (categoryState is PrelovedCategoryState.Success) {
+                    CategoryChipRow(
+                        categories         = categoryState.data,
+                        selectedCategoryId = selectedCategoryId,
+                        onCategorySelected = onCategorySelected,
+                        modifier           = Modifier.padding(bottom = Spacing.sm)
+                    )
                 }
 
                 if (filteredData.isEmpty()) {
@@ -333,9 +321,10 @@ fun PrelovedBentoCard(
     bgColor: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit
 ) {
-    val categoryEmoji = categoryEmojiFor(item.category)
+    val categoryLabel = item.category?.name ?: "Lainnya"
+    val categoryEmoji = item.category?.icon ?: categoryEmojiFor(categoryLabel)
+    val primaryImageUrl = item.primaryImageUrl()
 
-    // Kondisi label singkat — max 5 karakter biar tidak wrap
     val condShort = when (item.condition) {
         "NEW"      -> "BARU"
         "LIKE_NEW" -> "MULUS"
@@ -359,28 +348,46 @@ fun PrelovedBentoCard(
                     .background(bgColor),
                 contentAlignment = Alignment.Center
             ) {
-                Text(categoryEmoji, fontSize = if (isWide) 52.sp else 36.sp)
+                if (primaryImageUrl.isNullOrBlank()) {
+                    Text(categoryEmoji, fontSize = if (isWide) 52.sp else 36.sp)
+                } else {
+                    AsyncImage(
+                        model              = primaryImageUrl,
+                        contentDescription = item.title,
+                        modifier           = Modifier.fillMaxSize(),
+                        contentScale       = ContentScale.Crop
+                    )
+                }
             }
 
             // ── INFO ──────────────────────────────────────────────
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
-                    text = item.title,
-                    fontSize = if (isWide) 14.sp else 12.sp,
+                    text       = item.title,
+                    fontSize   = if (isWide) 14.sp else 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Charcoal, fontFamily = FrauncesFamily,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                    color      = Charcoal, fontFamily = FrauncesFamily,
+                    maxLines   = 2, overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text     = "$categoryEmoji $categoryLabel",
+                    fontSize = 10.sp,
+                    color    = Charcoal60,
+                    fontFamily = DmSansFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = item.formattedPrice(),
-                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        color = Terracotta, fontFamily = DmSansFamily
+                        text       = item.formattedPrice(),
+                        fontSize   = 13.sp, fontWeight = FontWeight.Bold,
+                        color      = Terracotta, fontFamily = DmSansFamily
                     )
                     Box(
                         modifier = Modifier
@@ -389,9 +396,9 @@ fun PrelovedBentoCard(
                             .padding(horizontal = 7.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = condShort,
-                            fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                            color = Sage, fontFamily = DmSansFamily, letterSpacing = 0.5.sp
+                            text       = condShort,
+                            fontSize   = 8.sp, fontWeight = FontWeight.Bold,
+                            color      = Sage, fontFamily = DmSansFamily, letterSpacing = 0.5.sp
                         )
                     }
                 }
@@ -403,20 +410,21 @@ fun PrelovedBentoCard(
 // ── TAB DICARI ────────────────────────────────────────────────────
 @Composable
 fun PrelovedDicariContent(
-    listState: WantedListState,
-    actionState: WantedActionState,
-    onFulfill: (String) -> Unit,
-    onRetry: () -> Unit
+    listState: PrelovedRequestListState,
+    categoryState: PrelovedRequestCategoryState,
+    selectedCategoryId: Int?,
+    onCategorySelected: (Int?) -> Unit,
+    onRetry: () -> Unit,
+    onCardClick: (String) -> Unit = {},
+    onContactWhatsApp: (String, String) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf("Semua") }
-
     when (listState) {
-        is WantedListState.Loading -> {
+        is PrelovedRequestListState.Loading -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
             }
         }
-        is WantedListState.Error -> {
+        is PrelovedRequestListState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -432,59 +440,25 @@ fun PrelovedDicariContent(
                 }
             }
         }
-        is WantedListState.Success -> {
-            val isFulfillLoading = actionState is WantedActionState.Loading
-            // Filter data berdasarkan kategori yang dipilih
-            val filteredData = if (selectedCategory == "Semua") {
-                listState.data
-            } else {
-                // categoryFilters pakai format "👟 Sepatu" — ambil label saja lalu map ke BE value
-                val label     = selectedCategory.substringAfter(" ") // "Sepatu"
-                val filterKey = when (label.uppercase()) {
-                    "SEPATU"     -> "SEPATU"
-                    "FASHION"    -> "FASHION"
-                    "GADGET"     -> "GADGET"
-                    "BUKU"       -> "BUKU"
-                    "ELEKTRONIK" -> "ELEKTRONIK"
-                    "OLAHRAGA"   -> "OLAHRAGA"
-                    "FURNITURE"  -> "FURNITURE"
-                    else         -> label.uppercase()
-                }
-                listState.data.filter { it.category?.uppercase() == filterKey }
-            }
+        is PrelovedRequestListState.Success -> {
+            val filteredData = selectedCategoryId?.let { selected ->
+                listState.data.filter { it.categoryId == selected }
+            } ?: listState.data
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(1),
                 contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = 0.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                // ── Category filter pills ─────────────────────────
-                item(span = { GridItemSpan(1) }) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        categoryFilters.forEach { cat ->
-                            val isSelected = selectedCategory == cat
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(Radius.full))
-                                    .background(if (isSelected) Charcoal else CreamDark)
-                                    .clickable { selectedCategory = cat }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                            ) {
-                                Text(
-                                    text = cat,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontFamily = DmSansFamily,
-                                    color = if (isSelected) Cream else Charcoal60
-                                )
-                            }
-                        }
+                // ── Category filter chips ─────────────────────────
+                if (categoryState is PrelovedRequestCategoryState.Success) {
+                    item(span = { GridItemSpan(1) }) {
+                        CategoryChipRow(
+                            categories         = categoryState.data,
+                            selectedCategoryId = selectedCategoryId,
+                            onCategorySelected = onCategorySelected,
+                            modifier           = Modifier.padding(bottom = 4.dp)
+                        )
                     }
                 }
 
@@ -528,11 +502,14 @@ fun PrelovedDicariContent(
                         }
                     }
                 } else {
-                    items(filteredData.size) { index ->
-                        WantedCard(
-                            wanted          = filteredData[index],
-                            isFulfillLoading = isFulfillLoading,
-                            onFulfill       = { onFulfill(filteredData[index].id) }
+                    items(
+                        count = filteredData.size,
+                        key   = { filteredData[it].id }
+                    ) { index ->
+                        PrelovedRequestCard(
+                            item    = filteredData[index],
+                            onClick = { onCardClick(filteredData[index].id) },
+                            onContactWhatsApp = { onContactWhatsApp(filteredData[index].user.waNumber, filteredData[index].title) }
                         )
                     }
                 }
@@ -542,21 +519,21 @@ fun PrelovedDicariContent(
     }
 }
 
-// ── WANTED CARD ───────────────────────────────────────────────────
+// ── PRELOVED REQUEST CARD ─────────────────────────────────────────
 @Composable
-fun WantedCard(
-    wanted: WantedDto,
-    isFulfillLoading: Boolean,
-    onFulfill: () -> Unit
+fun PrelovedRequestCard(
+    item: PrelovedRequestDto,
+    onClick: () -> Unit = {},
+    onContactWhatsApp: () -> Unit
 ) {
-    val createdAtLabel = timeAgo(wanted.createdAt)
-    val initials = wanted.user.name.trim().split(" ")
+    val initials = item.user.name.trim().split(" ")
         .filter { it.isNotBlank() }.take(2)
         .joinToString("") { it.first().uppercase() }
-    val formattedBudget = wanted.formattedMaxPrice()
+    val formattedBudget = item.formattedMaxPrice()
+    val categoryLabel   = item.category?.name
 
     Card(
-        modifier  = Modifier.fillMaxWidth(),
+        modifier  = Modifier.fillMaxWidth().clickable { onClick() },
         shape     = RoundedCornerShape(Radius.lg),
         colors    = CardDefaults.cardColors(containerColor = Cream),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -569,12 +546,21 @@ fun WantedCard(
                     modifier = Modifier.size(40.dp).clip(CircleShape).background(TerracottaPale),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(initials, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Terracotta, fontFamily = DmSansFamily)
+                    if (!item.user.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model              = item.user.avatarUrl,
+                            contentDescription = item.user.name,
+                            modifier           = Modifier.fillMaxSize(),
+                            contentScale       = ContentScale.Crop
+                        )
+                    } else {
+                        Text(initials, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Terracotta, fontFamily = DmSansFamily)
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(wanted.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                    Text("Mencari · $createdAtLabel", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Text(item.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
+                    Text("Mencari", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
                 }
                 Box(
                     modifier = Modifier
@@ -590,25 +576,25 @@ fun WantedCard(
 
             // ── Judul barang ──────────────────────────────────────
             Text(
-                text = wanted.title,
+                text       = item.title,
                 fontFamily = FrauncesFamily,
-                fontSize = 17.sp,
+                fontSize   = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = Charcoal,
+                color      = Charcoal,
                 lineHeight = 22.sp
             )
 
             // ── Deskripsi ─────────────────────────────────────────
-            if (!wanted.description.isNullOrEmpty()) {
+            if (!item.description.isNullOrEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = wanted.description,
+                    text       = item.description,
                     fontFamily = DmSansFamily,
-                    fontSize = 12.sp,
-                    color = Charcoal60,
+                    fontSize   = 12.sp,
+                    color      = Charcoal60,
                     lineHeight = 17.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines   = 2,
+                    overflow   = TextOverflow.Ellipsis
                 )
             }
 
@@ -619,8 +605,9 @@ fun WantedCard(
                 if (formattedBudget != null) {
                     PrelovedInfoChip("💰 $formattedBudget")
                 }
-                if (!wanted.category.isNullOrEmpty()) {
-                    PrelovedInfoChip("${categoryEmojiFor(wanted.category)} ${wanted.category}")
+                if (!categoryLabel.isNullOrEmpty()) {
+                    val emoji = item.category?.icon ?: categoryEmojiFor(categoryLabel)
+                    PrelovedInfoChip("$emoji $categoryLabel")
                 }
             }
 
@@ -628,21 +615,27 @@ fun WantedCard(
             HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
             Spacer(Modifier.height(Spacing.sm))
 
-            // ── Tombol Hubungi ────────────────────────────────────
+            // ── Tombol Hubungi via WhatsApp ───────────────────────
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radius.full))
-                        .background(if (isFulfillLoading) Terracotta.copy(alpha = 0.5f) else Terracotta)
-                        .clickable(enabled = !isFulfillLoading) { onFulfill() }
+                        .background(
+                            if (item.user.waNumber.isBlank())
+                                Terracotta.copy(alpha = 0.4f)
+                            else Terracotta
+                        )
+                        .clickable(enabled = item.user.waNumber.isNotBlank()) { onContactWhatsApp() }
                         .padding(horizontal = 20.dp, vertical = 9.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isFulfillLoading) {
-                        CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                    } else {
-                        Text("💬 Hubungi", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cream, fontFamily = DmSansFamily)
-                    }
+                    Text(
+                        "💬 Hubungi via WA",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Cream,
+                        fontFamily = DmSansFamily
+                    )
                 }
             }
         }

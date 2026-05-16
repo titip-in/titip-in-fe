@@ -41,7 +41,7 @@ class PrelovedRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal posting barang")
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal posting barang")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -74,16 +74,16 @@ class PrelovedRepository @Inject constructor(
         }
     }
 
-suspend fun getMyPrelovedList(userId: String): Result<List<PrelovedDto>> {
-    return try {
-        val response = apiService.getMyPrelovedList(userId)
-        if (response.isSuccessful && response.body()?.success == true) {
-            Result.Success(response.body()!!.data ?: emptyList())
-        } else {
-            Result.Error(response.body()?.error?.message ?: "Gagal memuat data")
+    suspend fun getMyPrelovedList(userId: String? = null): Result<List<PrelovedDto>> {
+        return try {
+            val response = apiService.getMyPrelovedList()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()?.data?.data.orEmpty())
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal memuat data")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
         }
-    } catch (e: Exception) {
-        Result.Error("Tidak bisa terhubung ke server")
     }
-}
 }

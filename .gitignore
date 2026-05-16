@@ -13,4 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
-/project-overview
+/.agent/project-overview
+.agent/
+CLAUDE.md
+AGENTS.md
+.agents/

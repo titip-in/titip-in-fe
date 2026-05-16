@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SplashDestination { Loading, Home, Login }
+enum class SplashDestination { Loading, Onboarding, Home, Login }
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
@@ -23,8 +23,13 @@ class SplashViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Delay sedikit biar splash keliatan (opsional)
             kotlinx.coroutines.delay(800)
+
+            val hasSeenOnboarding = dataStore.hasSeenOnboarding.first()
+            if (!hasSeenOnboarding) {
+                _destination.value = SplashDestination.Onboarding
+                return@launch
+            }
 
             val token = dataStore.accessToken.first()
             _destination.value = if (!token.isNullOrEmpty()) {

@@ -125,7 +125,6 @@ fun JastipScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
             ) {
                 // ── HEADER ────────────────────────────────────────────
                 Row(
@@ -182,8 +181,6 @@ fun JastipScreen(
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(Spacing.xs))
 
                 when (selectedTab) {
                     0 -> TitipinPullRefresh(
@@ -469,7 +466,7 @@ fun JastipRequestContent(
     }
 }
 
-// ── REQUEST CARD ──────────────────────────────────────────────────
+// ── REQUEST CARD (redesigned) ─────────────────────────────────────
 @Composable
 fun RequestCard(
     request: RequestDto,
@@ -483,115 +480,172 @@ fun RequestCard(
         .joinToString("") { it.first().uppercase() }
 
     Card(
-        modifier  = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier  = Modifier.fillMaxWidth().clickable { onClick() },
         shape     = RoundedCornerShape(Radius.lg),
         colors    = CardDefaults.cardColors(containerColor = Cream),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-
-            // ── Avatar + nama + badge Open ─────────────────────────
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(GoldPale),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(initials, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Gold, fontFamily = DmSansFamily)
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(request.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                    Text(
-                        text = listOfNotNull(request.category?.name, createdAtLabel).joinToString(" · "),
-                        fontSize = 11.sp,
-                        color = Charcoal60,
-                        fontFamily = DmSansFamily
-                    )
-                }
-                StatusBadge(status = request.status)
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            Text(
-                text = request.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Charcoal,
-                fontFamily = DmSansFamily,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Highlight box rute ────────────────────────────────
-            Column(
+        Column {
+            // ── Rute header (dark bar) ────────────────────────────
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.md))
-                    .background(GoldPale)
-                    .padding(Spacing.md)
+                    .clip(RoundedCornerShape(topStart = Radius.lg, topEnd = Radius.lg))
+                    .background(Charcoal)
+                    .padding(horizontal = Spacing.md, vertical = 10.dp)
             ) {
-                Text("BUTUH DITITIPIN", fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp, color = Gold, fontFamily = DmSansFamily)
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "DARI",
+                            fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp, color = Cream.copy(alpha = 0.4f),
+                            fontFamily = DmSansFamily
+                        )
+                        Text(
+                            text = request.fromLocation,
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = Cream, fontFamily = DmSansFamily,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Text(
-                        text = request.fromLocation,
-                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Charcoal,
-                        fontFamily = DmSansFamily, modifier = Modifier.weight(1f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        text = "→",
+                        fontSize = 18.sp, color = Terracotta,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                    Text("  →  ", fontSize = 14.sp, color = Gold, fontFamily = DmSansFamily)
-                    Text(
-                        text = request.toLocation,
-                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Charcoal,
-                        fontFamily = DmSansFamily, modifier = Modifier.weight(1f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "KE",
+                            fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp, color = Cream.copy(alpha = 0.4f),
+                            fontFamily = DmSansFamily
+                        )
+                        Text(
+                            text = request.toLocation,
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = Cream, fontFamily = DmSansFamily,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        )
+                    }
                 }
             }
 
-            // ── Catatan ───────────────────────────────────────────
-            if (!request.notes.isNullOrEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                InfoChip("📝 ${request.notes}")
-            }
+            // ── Konten card ───────────────────────────────────────
+            Column(modifier = Modifier.padding(Spacing.md)) {
 
-            Spacer(Modifier.height(Spacing.sm))
-            HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
-            Spacer(Modifier.height(Spacing.sm))
+                // Judul request
+                Text(
+                    text = request.title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Charcoal,
+                    fontFamily = FrauncesFamily,
+                    lineHeight = 21.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-            // ── Tombol WhatsApp ───────────────────────────────────
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(Terracotta)
-                        .clickable(enabled = !isTakeLoading && request.user.waNumber.isNotBlank()) {
-                            openWhatsApp(
-                                context,
-                                request.user.waNumber,
-                                waMessageTakeRequest(request.fromLocation, request.toLocation)
+                if (!request.notes.isNullOrEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = request.notes,
+                        fontSize = 12.sp, color = Charcoal60,
+                        fontFamily = DmSansFamily,
+                        lineHeight = 17.sp, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(Modifier.height(Spacing.sm))
+
+                // ── Meta: avatar + nama + kategori + status ───────
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(GoldPale),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!request.user.avatarUrl.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model              = request.user.avatarUrl,
+                                contentDescription = request.user.name,
+                                modifier           = Modifier.fillMaxSize(),
+                                contentScale       = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Text(initials, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold, fontFamily = DmSansFamily)
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = request.user.name,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = Charcoal, fontFamily = DmSansFamily,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    if (request.category != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(Radius.full))
+                                .background(CreamDark)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = listOfNotNull(request.category.icon, request.category.name).joinToString(" "),
+                                fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
                             )
                         }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    StatusBadge(status = request.status)
+                }
+
+                Spacer(Modifier.height(Spacing.sm))
+                HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
+                Spacer(Modifier.height(Spacing.sm))
+
+                // ── Footer: waktu + tombol ────────────────────────
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    if (isTakeLoading) {
-                        CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("💬 ", fontSize = 12.sp)
+                    Text(
+                        text = createdAtLabel,
+                        fontSize = 11.sp, color = Charcoal60,
+                        fontFamily = DmSansFamily
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.full))
+                            .background(if (request.user.waNumber.isNotBlank()) Sage else CreamDark)
+                            .clickable(enabled = !isTakeLoading && request.user.waNumber.isNotBlank()) {
+                                openWhatsApp(
+                                    context, request.user.waNumber,
+                                    waMessageTakeRequest(request.fromLocation, request.toLocation)
+                                )
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isTakeLoading) {
+                            CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                        } else {
                             Text(
-                                text = "WhatsApp",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Cream,
-                                fontFamily = DmSansFamily
+                                text = "💬 Hubungi",
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                color = Cream, fontFamily = DmSansFamily
                             )
                         }
                     }
@@ -602,6 +656,7 @@ fun RequestCard(
 }
 
 // ── JASTIP CARD ───────────────────────────────────────────────────
+
 @Composable
 fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
     val context = LocalContext.current
