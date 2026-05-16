@@ -183,7 +183,7 @@ fun JastipScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
                 when (selectedTab) {
                     0 -> TitipinPullRefresh(
