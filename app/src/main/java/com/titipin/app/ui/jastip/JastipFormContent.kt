@@ -94,6 +94,7 @@ fun JastipFormContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .fillMaxHeight(0.92f)
             .imePadding()
             .navigationBarsPadding()
     ) {
@@ -130,6 +131,7 @@ fun JastipFormContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.lg)
                 .padding(top = Spacing.md),
