@@ -2,12 +2,16 @@ package com.titipin.app.ui.preloved
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.net.Uri
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.PrelovedRepository
 import com.titipin.app.data.repository.Result
+import com.titipin.app.data.repository.UploadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +42,8 @@ sealed class PrelovedCategoryState {
 class PrelovedViewModel @Inject constructor(
     private val repository: PrelovedRepository,
     private val categoryRepository: CategoryRepository,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val uploadRepository: UploadRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<PrelovedListState>(PrelovedListState.Loading)
@@ -125,19 +130,33 @@ class PrelovedViewModel @Inject constructor(
         description: String?,
         price: Int,
         condition: String,
-        imageUrl: String
+        imageUris: List<Uri>,
+        existingUrls: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             _actionState.value = PrelovedActionState.Loading
+
+            val uploadedUrls = imageUris.map { uri ->
+                async { uploadRepository.uploadImage(uri) }
+            }.awaitAll().mapNotNull { result ->
+                (result as? Result.Success)?.data
+            }
+
+            val allUrls = existingUrls + uploadedUrls
+            if (allUrls.isEmpty()) {
+                _actionState.value = PrelovedActionState.Error("Minimal 1 foto diperlukan")
+                return@launch
+            }
+
             val request = CreatePrelovedRequest(
-                categoryId = categoryId,
-                title = title,
-                description = description,
-                price = price,
-                condition = condition,
-                primaryImageUrl = imageUrl,
-                status = "AVAILABLE",
-                images = listOf(imageUrl)
+                categoryId      = categoryId,
+                title           = title,
+                description     = description,
+                price           = price,
+                condition       = condition,
+                primaryImageUrl = allUrls.first(),
+                status          = "AVAILABLE",
+                images          = allUrls
             )
             _actionState.value = when (val result = repository.createPreloved(request)) {
                 is Result.Success -> PrelovedActionState.Success(result.data)

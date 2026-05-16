@@ -2,12 +2,16 @@ package com.titipin.app.ui.jastip
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.net.Uri
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.Result
+import com.titipin.app.data.repository.UploadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +44,8 @@ sealed class JastipActionState {
 class JastipViewModel @Inject constructor(
     private val repository: JastipRepository,
     private val categoryRepository: CategoryRepository,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val uploadRepository: UploadRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<JastipListState>(JastipListState.Loading)
@@ -122,6 +127,11 @@ class JastipViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Upload gambar dari Uri list ke /v1/upload, lalu buat listing Jastip.
+     * [imageUris] — gambar yang dipilih user dari device (belum diupload).
+     * [existingUrls] — URL yang sudah di-host (untuk edit form, opsional).
+     */
     fun createJastip(
         title: String,
         fromLocation: String,
@@ -130,23 +140,38 @@ class JastipViewModel @Inject constructor(
         latitude: Double?,
         longitude: Double?,
         notes: String?,
-        imageUrl: String,
+        imageUris: List<Uri>,
+        existingUrls: List<String> = emptyList(),
         categoryId: Int? = null
     ) {
         viewModelScope.launch {
             _actionState.value = JastipActionState.Loading
+
+            // Upload semua gambar baru secara paralel
+            val uploadedUrls = imageUris.map { uri ->
+                async { uploadRepository.uploadImage(uri) }
+            }.awaitAll().mapNotNull { result ->
+                (result as? Result.Success)?.data
+            }
+
+            val allUrls = existingUrls + uploadedUrls
+            if (allUrls.isEmpty()) {
+                _actionState.value = JastipActionState.Error("Minimal 1 foto diperlukan")
+                return@launch
+            }
+
             val request = CreateJastipRequest(
-                categoryId = categoryId,
-                title = title,
-                notes = notes,
-                fromLocation = fromLocation,
-                toLocation = toLocation,
-                deadline = deadline,
-                latitude = latitude,
-                longitude = longitude,
-                status = "ACTIVE",
-                primaryImageUrl = imageUrl,
-                images = listOf(imageUrl)
+                categoryId      = categoryId,
+                title           = title,
+                notes           = notes,
+                fromLocation    = fromLocation,
+                toLocation      = toLocation,
+                deadline        = deadline,
+                latitude        = latitude,
+                longitude       = longitude,
+                status          = "ACTIVE",
+                primaryImageUrl = allUrls.first(),
+                images          = allUrls
             )
             _actionState.value = when (val result = repository.createJastip(request)) {
                 is Result.Success -> JastipActionState.Success(result.data)

@@ -1,5 +1,6 @@
 package com.titipin.app.ui.preloved
 
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +24,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.titipin.app.shared.ImageItem
+import com.titipin.app.shared.ListingImagePickerRow
 import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.theme.*
 
@@ -48,10 +51,10 @@ fun PrelovedFormContent(
     var description  by remember { mutableStateOf("") }
     var priceStr     by remember { mutableStateOf("") }
     var selectedCond by remember { mutableStateOf("") }
-    var imageUrl     by remember { mutableStateOf("") }
+    var imageItems   by remember { mutableStateOf<List<ImageItem>>(emptyList()) }
 
     val formValid = title.isNotEmpty() && priceStr.isNotEmpty() &&
-            selectedCond.isNotEmpty() && imageUrl.isNotBlank()
+            selectedCond.isNotEmpty() && imageItems.isNotEmpty()
 
     // ── Root: Column dengan fillMaxHeight biar tombol tidak hilang ─
     Column(
@@ -97,22 +100,17 @@ fun PrelovedFormContent(
                 .padding(top = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            FormFieldLabel("URL FOTO UTAMA")
-            OutlinedTextField(
-                value = imageUrl,
-                onValueChange = { imageUrl = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("https://.../foto-barang.jpg", fontSize = 13.sp, color = Charcoal30, fontFamily = DmSansFamily) },
-                textStyle = TextStyle(fontSize = 13.sp, fontFamily = DmSansFamily, color = Charcoal),
-                singleLine = true,
-                shape = RoundedCornerShape(Radius.md),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (imageUrl.isNotBlank()) Sage else Terracotta,
-                    unfocusedBorderColor = if (imageUrl.isNotBlank()) Sage else Charcoal10,
-                    focusedContainerColor = CreamDark,
-                    unfocusedContainerColor = CreamDark,
-                    cursorColor = Terracotta
-                )
+            // ── IMAGE PICKER ──────────────────────────────────────────
+            ListingImagePickerRow(
+                images       = imageItems,
+                onPickImages = { newUris ->
+                    val space = 5 - imageItems.size
+                    val toAdd = newUris.take(space).map { ImageItem.Local(it) }
+                    imageItems = imageItems + toAdd
+                },
+                onRemove = { idx ->
+                    imageItems = imageItems.toMutableList().also { it.removeAt(idx) }
+                }
             )
 
             // ── NAMA BARANG ───────────────────────────────────────
@@ -288,11 +286,11 @@ fun PrelovedFormContent(
                 showConfirmDialog = false
                 viewModel.createPreloved(
                     categoryId   = selectedCategoryId,
-                    title       = title,
-                    description = description.ifEmpty { null },
-                    price       = priceStr.toIntOrNull() ?: 0,
-                    condition   = selectedCond,
-                    imageUrl    = imageUrl.trim()
+                    title        = title,
+                    description  = description.ifEmpty { null },
+                    price        = priceStr.toIntOrNull() ?: 0,
+                    condition    = selectedCond,
+                    imageUris    = imageItems.filterIsInstance<ImageItem.Local>().map { it.uri }
                 )
             },
             onDismiss = { showConfirmDialog = false }

@@ -2,6 +2,7 @@ package com.titipin.app.ui.jastip
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.titipin.app.shared.ImageItem
+import com.titipin.app.shared.ListingImagePickerRow
 import com.titipin.app.ui.auth.TitipinTextField
 import com.titipin.app.ui.theme.*
 import java.util.Calendar
@@ -41,7 +44,7 @@ fun JastipFormContent(
     var fromLocation by remember { mutableStateOf("") }
     var toLocation   by remember { mutableStateOf("") }
     var notes        by remember { mutableStateOf("") }
-    var imageUrl     by remember { mutableStateOf("") }
+    var imageItems   by remember { mutableStateOf<List<ImageItem>>(emptyList()) }
     var latitudeStr  by remember { mutableStateOf("-7.9358") }
     var longitudeStr by remember { mutableStateOf("112.6139") }
 
@@ -89,7 +92,7 @@ fun JastipFormContent(
             fromLocation.isNotEmpty() &&
             toLocation.isNotEmpty() &&
             deadlineFormatted.isNotEmpty() &&
-            imageUrl.isNotEmpty()
+            imageItems.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -207,17 +210,17 @@ fun JastipFormContent(
                 }
             }
 
-            TitipinTextField(
-                value = imageUrl,
-                onValueChange = { imageUrl = it },
-                label = "🖼️ URL FOTO",
-                placeholder = "https://.../foto.jpg",
-                isFocused = imageUrl.isNotEmpty()
-            )
-            Text(
-                text = "Upload gambar native akan ditambahkan di phase media. Untuk sementara pakai URL hasil upload.",
-                fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily,
-                modifier = Modifier.padding(start = 4.dp)
+            // ── IMAGE PICKER ──────────────────────────────────────────
+            ListingImagePickerRow(
+                images       = imageItems,
+                onPickImages = { newUris ->
+                    val space = 5 - imageItems.size
+                    val toAdd = newUris.take(space).map { ImageItem.Local(it) }
+                    imageItems = imageItems + toAdd
+                },
+                onRemove = { idx ->
+                    imageItems = imageItems.toMutableList().also { it.removeAt(idx) }
+                }
             )
 
             // ── KOORDINAT ─────────────────────────────────────────
@@ -326,7 +329,7 @@ fun JastipFormContent(
             deadline     = deadlineDisplay,
             onConfirm    = {
                 showConfirmDialog = false
-                viewModel.createJastip(
+                        viewModel.createJastip(
                     title        = title.trim(),
                     fromLocation = fromLocation,
                     toLocation   = toLocation,
@@ -334,7 +337,7 @@ fun JastipFormContent(
                     latitude     = latitudeStr.toDoubleOrNull() ?: -7.9358,
                     longitude    = longitudeStr.toDoubleOrNull() ?: 112.6139,
                     notes        = notes.ifEmpty { null },
-                    imageUrl     = imageUrl.trim()
+                    imageUris    = imageItems.filterIsInstance<ImageItem.Local>().map { it.uri }
                 )
             },
             onDismiss = { showConfirmDialog = false }

@@ -62,3 +62,8 @@ data class UserData(
     @SerializedName("updated_at")
     val updatedAt: String? = null
 )
+
+data class UploadImageResponse(
+    @SerializedName("image_url")
+    val imageUrl: String
+)

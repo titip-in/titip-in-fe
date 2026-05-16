@@ -1,6 +1,7 @@
 package com.titipin.app.data.remote
 
 import com.titipin.app.data.model.*
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -21,6 +22,13 @@ interface ApiService {
 
     @PUT("v1/me")
     suspend fun updateMe(@Body request: UpdateProfileRequest): Response<ApiResponse<UserData>>
+
+    // ── UPLOAD ─────────────────────────────────────────────────────
+    @Multipart
+    @POST("v1/upload")
+    suspend fun uploadImage(
+        @Part image: MultipartBody.Part
+    ): Response<ApiResponse<UploadImageResponse>>
 
     // ── CATEGORY ───────────────────────────────────────────────────
     @GET("v1/categories")
