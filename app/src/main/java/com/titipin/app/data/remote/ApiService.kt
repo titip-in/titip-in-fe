@@ -29,27 +29,31 @@ interface ApiService {
     ): Response<ApiResponse<List<CategoryDto>>>
 
     // ── JASTIP ────────────────────────────────────────────────────
-    @GET("jastip")
+    @GET("v1/jastip/listings")
     suspend fun getJastipList(): Response<ApiResponse<List<JastipDto>>>
 
-    @GET("jastip")
-    suspend fun getMyJastipList(
-        @Query("userId") userId: String
-    ): Response<ApiResponse<List<JastipDto>>>
+    @GET("v1/me/jastip/listings")
+    suspend fun getMyJastipList(): Response<ApiResponse<PaginatedResponse<JastipDto>>>
 
-    @GET("jastip/{id}")
+    @GET("v1/jastip/listings/{id}")
     suspend fun getJastipDetail(@Path("id") id: String): Response<ApiResponse<JastipDto>>
 
-    @POST("jastip")
+    @POST("v1/jastip/listings")
     suspend fun createJastip(@Body request: CreateJastipRequest): Response<ApiResponse<JastipDto>>
 
-    @PUT("jastip/{id}")
+    @PUT("v1/jastip/listings/{id}")
     suspend fun updateJastipStatus(
         @Path("id") id: String,
         @Body request: UpdateJastipStatusRequest
     ): Response<ApiResponse<JastipDto>>
 
-    @DELETE("jastip/{id}")
+    @PUT("v1/jastip/listings/{id}")
+    suspend fun updateJastip(
+        @Path("id") id: String,
+        @Body request: UpdateJastipListingRequest
+    ): Response<ApiResponse<JastipDto>>
+
+    @DELETE("v1/jastip/listings/{id}")
     suspend fun deleteJastip(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ── PRELOVED ──────────────────────────────────────────────────

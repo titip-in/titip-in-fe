@@ -2,13 +2,16 @@ package com.titipin.app.ui.jastip
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
+import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -17,6 +20,12 @@ sealed class JastipListState {
     object Loading : JastipListState()
     data class Success(val data: List<JastipDto>) : JastipListState()
     data class Error(val message: String) : JastipListState()
+}
+
+sealed class JastipCategoryState {
+    object Loading : JastipCategoryState()
+    data class Success(val data: List<CategoryDto>) : JastipCategoryState()
+    data class Error(val message: String) : JastipCategoryState()
 }
 
 // State untuk detail + form (operasi single item)
@@ -29,11 +38,16 @@ sealed class JastipActionState {
 
 @HiltViewModel
 class JastipViewModel @Inject constructor(
-    private val repository: JastipRepository
+    private val repository: JastipRepository,
+    private val categoryRepository: CategoryRepository,
+    private val dataStore: DataStoreManager
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<JastipListState>(JastipListState.Loading)
     val listState: StateFlow<JastipListState> = _listState.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _detailState = MutableStateFlow<JastipActionState>(JastipActionState.Idle)
     val detailState: StateFlow<JastipActionState> = _detailState.asStateFlow()
@@ -41,8 +55,21 @@ class JastipViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<JastipActionState>(JastipActionState.Idle)
     val actionState: StateFlow<JastipActionState> = _actionState.asStateFlow()
 
+    private val _categoryState = MutableStateFlow<JastipCategoryState>(JastipCategoryState.Loading)
+    val categoryState: StateFlow<JastipCategoryState> = _categoryState.asStateFlow()
+
+    private val _selectedCategoryId = MutableStateFlow<Int?>(null)
+    val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
+
+    private val _currentUserId = MutableStateFlow<String?>(null)
+    val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
     // Load list saat screen pertama kali muncul
-    init { loadJastipList() }
+    init {
+        loadJastipList()
+        loadCategories()
+        loadCurrentUser()
+    }
 
     fun loadJastipList() {
         viewModelScope.launch {
@@ -51,6 +78,37 @@ class JastipViewModel @Inject constructor(
                 is Result.Success -> JastipListState.Success(result.data)
                 is Result.Error   -> JastipListState.Error(result.message)
             }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            _listState.value = when (val result = repository.getJastipList()) {
+                is Result.Success -> JastipListState.Success(result.data)
+                is Result.Error   -> JastipListState.Error(result.message)
+            }
+            _isRefreshing.value = false
+        }
+    }
+
+    fun selectCategory(categoryId: Int?) {
+        _selectedCategoryId.value = categoryId
+    }
+
+    fun loadCategories() {
+        viewModelScope.launch {
+            _categoryState.value = JastipCategoryState.Loading
+            _categoryState.value = when (val result = categoryRepository.getCategories("jastip")) {
+                is Result.Success -> JastipCategoryState.Success(result.data)
+                is Result.Error -> JastipCategoryState.Error(result.message)
+            }
+        }
+    }
+
+    private fun loadCurrentUser() {
+        viewModelScope.launch {
+            _currentUserId.value = dataStore.userId.firstOrNull()
         }
     }
 
@@ -65,17 +123,30 @@ class JastipViewModel @Inject constructor(
     }
 
     fun createJastip(
+        title: String,
         fromLocation: String,
         toLocation: String,
         deadline: String,
-        latitude: Double,
-        longitude: Double,
-        notes: String?
+        latitude: Double?,
+        longitude: Double?,
+        notes: String?,
+        imageUrl: String,
+        categoryId: Int? = null
     ) {
         viewModelScope.launch {
             _actionState.value = JastipActionState.Loading
             val request = CreateJastipRequest(
-                fromLocation, toLocation, deadline, latitude, longitude, notes
+                categoryId = categoryId,
+                title = title,
+                notes = notes,
+                fromLocation = fromLocation,
+                toLocation = toLocation,
+                deadline = deadline,
+                latitude = latitude,
+                longitude = longitude,
+                status = "ACTIVE",
+                primaryImageUrl = imageUrl,
+                images = listOf(imageUrl)
             )
             _actionState.value = when (val result = repository.createJastip(request)) {
                 is Result.Success -> JastipActionState.Success(result.data)

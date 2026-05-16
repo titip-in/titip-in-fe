@@ -37,9 +37,11 @@ fun JastipFormContent(
     val isLoading = actionState is JastipActionState.Loading
     var showConfirmDialog by remember { mutableStateOf(false) }
 
+    var title by remember { mutableStateOf("") }
     var fromLocation by remember { mutableStateOf("") }
     var toLocation   by remember { mutableStateOf("") }
     var notes        by remember { mutableStateOf("") }
+    var imageUrl     by remember { mutableStateOf("") }
     var latitudeStr  by remember { mutableStateOf("-7.9358") }
     var longitudeStr by remember { mutableStateOf("112.6139") }
 
@@ -83,7 +85,11 @@ fun JastipFormContent(
         datePicker.minDate = now.timeInMillis
     }
 
-    val formValid = fromLocation.isNotEmpty() && toLocation.isNotEmpty() && deadlineFormatted.isNotEmpty()
+    val formValid = title.isNotEmpty() &&
+            fromLocation.isNotEmpty() &&
+            toLocation.isNotEmpty() &&
+            deadlineFormatted.isNotEmpty() &&
+            imageUrl.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -129,6 +135,14 @@ fun JastipFormContent(
                 .padding(top = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
+            TitipinTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = "📦 JUDUL JASTIP",
+                placeholder = "Titip snack dari Suhat",
+                isFocused = title.isNotEmpty()
+            )
+
             TitipinTextField(
                 value = fromLocation, onValueChange = { fromLocation = it },
                 label = "📍 DARI",
@@ -190,6 +204,19 @@ fun JastipFormContent(
                     )
                 }
             }
+
+            TitipinTextField(
+                value = imageUrl,
+                onValueChange = { imageUrl = it },
+                label = "🖼️ URL FOTO",
+                placeholder = "https://.../foto.jpg",
+                isFocused = imageUrl.isNotEmpty()
+            )
+            Text(
+                text = "Upload gambar native akan ditambahkan di phase media. Untuk sementara pakai URL hasil upload.",
+                fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily,
+                modifier = Modifier.padding(start = 4.dp)
+            )
 
             // ── KOORDINAT ─────────────────────────────────────────
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
@@ -298,12 +325,14 @@ fun JastipFormContent(
             onConfirm    = {
                 showConfirmDialog = false
                 viewModel.createJastip(
+                    title        = title.trim(),
                     fromLocation = fromLocation,
                     toLocation   = toLocation,
                     deadline     = deadlineFormatted,
                     latitude     = latitudeStr.toDoubleOrNull() ?: -7.9358,
                     longitude    = longitudeStr.toDoubleOrNull() ?: 112.6139,
-                    notes        = notes.ifEmpty { null }
+                    notes        = notes.ifEmpty { null },
+                    imageUrl     = imageUrl.trim()
                 )
             },
             onDismiss = { showConfirmDialog = false }

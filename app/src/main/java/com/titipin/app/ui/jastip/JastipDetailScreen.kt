@@ -1,6 +1,5 @@
 package com.titipin.app.ui.jastip
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,9 +20,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.shared.formatDateDisplay
+import com.titipin.app.shared.formatDeadlineDisplay
+import com.titipin.app.shared.openWhatsApp
+import com.titipin.app.shared.waMessageJastipDetail
 import com.titipin.app.shared.formatTimeDisplay
+import com.titipin.app.ui.components.DetailImageGallery
+import com.titipin.app.ui.components.StatusBadge
+import com.titipin.app.ui.components.UserContactPanel
 import com.titipin.app.ui.theme.*
-import androidx.core.net.toUri
 
 @Composable
 fun JastipDetailScreen(
@@ -32,9 +36,25 @@ fun JastipDetailScreen(
     viewModel: JastipViewModel = hiltViewModel()
 ) {
     val detailState by viewModel.detailState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
+    val currentUserId by viewModel.currentUserId.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(jastipId) { viewModel.loadDetail(jastipId) }
+    LaunchedEffect(actionState) {
+        when (actionState) {
+            is JastipActionState.Success -> {
+                if ((actionState as JastipActionState.Success).data == null) {
+                    viewModel.resetActionState()
+                    onBack()
+                    return@LaunchedEffect
+                }
+                viewModel.resetActionState()
+                viewModel.loadDetail(jastipId)
+            }
+            else -> Unit
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -82,7 +102,7 @@ fun JastipDetailScreen(
                 val jastip = state.data ?: return@Column
                 val deadlineTime = formatTimeDisplay(jastip.deadline)
                 val deadlineDate = formatDateDisplay(jastip.deadline, includeYear = true)
-                val initials = jastip.user.name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
+                val isOwner = currentUserId == jastip.userId
 
                 // Scrollable content
                 Column(
@@ -93,35 +113,32 @@ fun JastipDetailScreen(
                 ) {
                     Spacer(Modifier.height(Spacing.sm))
 
-                    // ── USER ROW ──────────────────────────────────
+                    DetailImageGallery(
+                        images = jastip.images,
+                        contentDescription = jastip.title.ifBlank { "Foto jastip" }
+                    )
+
+                    Spacer(Modifier.height(Spacing.md))
+
+                    Text(
+                        text = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Charcoal,
+                        fontFamily = FrauncesFamily,
+                        lineHeight = 30.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(SagePale),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(initials, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Sage, fontFamily = DmSansFamily)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(jastip.user.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
-                            Text("⭐ — · Malang", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(Radius.full))
-                                .background(if (jastip.status == "ACTIVE") SagePale else CreamDark)
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
+                        StatusBadge(status = jastip.status)
+                        if (jastip.category != null) {
                             Text(
-                                text = if (jastip.status == "ACTIVE") "● Aktif" else "✕ Tutup",
-                                fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                                color = if (jastip.status == "ACTIVE") Sage else Charcoal30,
+                                text = listOfNotNull(jastip.category.icon, jastip.category.name).joinToString(" "),
+                                fontSize = 12.sp,
+                                color = Charcoal60,
                                 fontFamily = DmSansFamily
                             )
                         }
@@ -162,7 +179,6 @@ fun JastipDetailScreen(
                         InfoTile("⏰", "DEADLINE", deadlineTime, Modifier.weight(1f))
                     }
 
-                    // ── CATATAN ───────────────────────────────────
                     if (!jastip.notes.isNullOrEmpty()) {
                         Spacer(Modifier.height(Spacing.sm))
                         Box(
@@ -184,6 +200,34 @@ fun JastipDetailScreen(
                         }
                     }
 
+                    Spacer(Modifier.height(Spacing.sm))
+
+                    UserContactPanel(
+                        name = jastip.user.name,
+                        waNumber = jastip.user.waNumber,
+                        avatarUrl = jastip.user.avatarUrl,
+                        status = jastip.user.status,
+                        isOwner = isOwner,
+                        message = waMessageJastipDetail(
+                            jastip.fromLocation,
+                            jastip.toLocation,
+                            formatDeadlineDisplay(jastip.deadline, includeYear = false)
+                        )
+                    )
+
+                    if (isOwner) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        OwnerPanel(
+                            status = jastip.status,
+                            isLoading = actionState is JastipActionState.Loading,
+                            onToggleStatus = {
+                                val nextStatus = if (jastip.status == "ACTIVE") "CLOSED" else "ACTIVE"
+                                viewModel.updateStatus(jastip.id, nextStatus)
+                            },
+                            onDelete = { viewModel.deleteJastip(jastip.id) }
+                        )
+                    }
+
                     Spacer(Modifier.height(Spacing.xl))
                 }
 
@@ -197,18 +241,26 @@ fun JastipDetailScreen(
                 ) {
                     Button(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW,
-                                "https://wa.me/${jastip.user.waNumber}".toUri())
-                            context.startActivity(intent)
+                            if (!isOwner) {
+                                openWhatsApp(
+                                    context, jastip.user.waNumber,
+                                    waMessageJastipDetail(
+                                        jastip.fromLocation,
+                                        jastip.toLocation,
+                                        formatDeadlineDisplay(jastip.deadline, includeYear = false)
+                                    )
+                                )
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(ComponentSize.buttonHeight),
+                        enabled = !isOwner && jastip.user.waNumber.isNotBlank(),
                         shape  = RoundedCornerShape(Radius.full),
                         colors = ButtonDefaults.buttonColors(containerColor = Sage, contentColor = Cream)
                     ) {
                         Text(
-                            text = "💬 Hubungi via WhatsApp",
+                            text = if (isOwner) "Ini listing Anda" else "💬 Hubungi via WhatsApp",
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily
                         )
                     }
@@ -233,5 +285,78 @@ fun InfoTile(emoji: String, label: String, value: String, modifier: Modifier = M
             Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, color = Charcoal60, fontFamily = DmSansFamily)
             Text(value, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
         }
+    }
+}
+
+@Composable
+private fun OwnerPanel(
+    status: String,
+    isLoading: Boolean,
+    onToggleStatus: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .background(CreamDark)
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "KELOLA LISTING",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = Charcoal60,
+            fontFamily = DmSansFamily
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onToggleStatus,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal, contentColor = Cream)
+            ) {
+                Text(
+                    text = if (status == "ACTIVE") "Tutup" else "Buka",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            OutlinedButton(
+                onClick = { showDeleteConfirm = true },
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Hapus listing?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Listing yang dihapus tidak bisa dikembalikan.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                }) {
+                    Text("Hapus", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Batal", color = Charcoal60, fontFamily = DmSansFamily)
+                }
+            }
+        )
     }
 }

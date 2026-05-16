@@ -1,6 +1,5 @@
 package com.titipin.app.ui.jastip
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,12 +19,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.shared.formatDeadlineDisplay
+import com.titipin.app.shared.openWhatsApp
+import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.shared.waMessageJastip
+import com.titipin.app.shared.waMessageTakeRequest
+import com.titipin.app.ui.components.CategoryChipRow
+import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -33,14 +37,19 @@ import kotlinx.coroutines.launch
 @Composable
 fun JastipScreen(
     onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToOffer: (from: String, to: String, name: String, notes: String) -> Unit = { _, _, _, _ -> },
     viewModel: JastipViewModel = hiltViewModel(),
     requestViewModel: RequestViewModel = hiltViewModel()
 ) {
     val listState by viewModel.listState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
+    val selectedCategoryId by viewModel.selectedCategoryId.collectAsState()
 
     val requestListState by requestViewModel.listState.collectAsState()
     val requestActionState by requestViewModel.actionState.collectAsState()
+    val isRequestRefreshing by requestViewModel.isRefreshing.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -78,12 +87,12 @@ fun JastipScreen(
                 }
             }
             is RequestActionState.TakeSuccess -> {
-                val waNumber = (requestActionState as RequestActionState.TakeSuccess)
-                    .takenResult.request.user.waNumber
+                val result   = (requestActionState as RequestActionState.TakeSuccess).takenResult
+                val waNumber = result.request.user.waNumber
+                val msg      = waMessageTakeRequest(result.request.fromLocation, result.request.toLocation)
                 requestViewModel.resetActionState()
                 requestViewModel.loadRequestList()
-                val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/$waNumber".toUri())
-                context.startActivity(intent)
+                openWhatsApp(context, waNumber, msg)
             }
             is RequestActionState.Error -> {
                 val msg = (requestActionState as RequestActionState.Error).message
@@ -178,17 +187,41 @@ fun JastipScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 when (selectedTab) {
-                    0 -> JastipTersediaContent(
-                        listState   = listState,
-                        onCardClick = onNavigateToDetail,
-                        onRetry     = { viewModel.loadJastipList() }
-                    )
-                    1 -> JastipRequestContent(
-                        listState   = requestListState,
-                        actionState = requestActionState,
-                        onTake      = { id -> requestViewModel.takeRequest(id) },
-                        onRetry     = { requestViewModel.loadRequestList() }
-                    )
+                    0 -> TitipinPullRefresh(
+                        isRefreshing = isRefreshing,
+                        onRefresh    = { viewModel.refresh() },
+                        modifier     = Modifier.weight(1f)
+                    ) {
+                        JastipTersediaContent(
+                            listState = listState,
+                            categoryState = categoryState,
+                            selectedCategoryId = selectedCategoryId,
+                            onCategorySelected = viewModel::selectCategory,
+                            onCardClick = onNavigateToDetail,
+                            onRetry = { viewModel.loadJastipList() }
+                        )
+                    }
+                    1 -> TitipinPullRefresh(
+                        isRefreshing = isRequestRefreshing,
+                        onRefresh    = { requestViewModel.refresh() },
+                        modifier     = Modifier.weight(1f)
+                    ) {
+                        JastipRequestContent(
+                            listState   = requestListState,
+                            actionState = requestActionState,
+                            onTake      = { request ->
+                                // Navigate ke offer screen dulu biar user konfirmasi
+                                // Saat BE phase 2 siap, di offer screen baru POST /requests/{id}/offer
+                                onNavigateToOffer(
+                                    request.fromLocation,
+                                    request.toLocation,
+                                    request.user.name,
+                                    request.notes ?: ""
+                                )
+                            },
+                            onRetry = { requestViewModel.loadRequestList() }
+                        )
+                    }
                 }
             }
 
@@ -261,6 +294,9 @@ fun JastipScreen(
 @Composable
 fun JastipTersediaContent(
     listState: JastipListState,
+    categoryState: JastipCategoryState,
+    selectedCategoryId: Int?,
+    onCategorySelected: (Int?) -> Unit,
     onCardClick: (String) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -284,7 +320,21 @@ fun JastipTersediaContent(
             }
         }
         is JastipListState.Success -> {
-            if (listState.data.isEmpty()) {
+            val filteredData = selectedCategoryId?.let { selected ->
+                listState.data.filter { it.categoryId == selected }
+            } ?: listState.data
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (categoryState is JastipCategoryState.Success) {
+                    CategoryChipRow(
+                        categories = categoryState.data,
+                        selectedCategoryId = selectedCategoryId,
+                        onCategorySelected = onCategorySelected,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
+                    )
+                }
+
+            if (filteredData.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("📦", fontSize = 48.sp)
@@ -299,12 +349,13 @@ fun JastipTersediaContent(
                     contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = 0.dp),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
-                    items(listState.data, key = { it.id }) { jastip ->
+                    items(filteredData, key = { it.id }) { jastip ->
                         JastipCard(jastip = jastip, onClick = { onCardClick(jastip.id) })
                     }
                     // Extra space di bawah buat FAB
                     item { Spacer(Modifier.height(80.dp)) }
                 }
+            }
             }
         }
     }
@@ -315,7 +366,7 @@ fun JastipTersediaContent(
 fun JastipRequestContent(
     listState: RequestListState,
     actionState: RequestActionState,
-    onTake: (String) -> Unit,
+    onTake: (RequestDto) -> Unit,
     onRetry: () -> Unit
 ) {
     when (listState) {
@@ -399,7 +450,7 @@ fun JastipRequestContent(
                         RequestCard(
                             request       = request,
                             isTakeLoading = isTakeLoading,
-                            onTake        = { onTake(request.id) }
+                            onTake        = { onTake(request) }
                         )
                     }
                 }
@@ -589,23 +640,32 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
                         )
                     }
                     Spacer(Modifier.height(4.dp))
-                    // Status badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.full))
-                            .background(if (jastip.status == "ACTIVE") SagePale else CreamDark)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (jastip.status == "ACTIVE") "AKTIF" else "TUTUP",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = if (jastip.status == "ACTIVE") Sage else Charcoal30,
-                            fontFamily = DmSansFamily
-                        )
-                    }
+                    StatusBadge(status = jastip.status)
                 }
+            }
+
+            Spacer(Modifier.height(Spacing.sm))
+
+            Text(
+                text = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Charcoal,
+                fontFamily = DmSansFamily,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (jastip.category != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = listOfNotNull(jastip.category.icon, jastip.category.name).joinToString(" "),
+                    fontSize = 11.sp,
+                    color = Charcoal60,
+                    fontFamily = DmSansFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
             Spacer(Modifier.height(Spacing.sm))
@@ -672,14 +732,15 @@ fun JastipCard(jastip: JastipDto, onClick: () -> Unit) {
                 )
 
                 // Tombol WhatsApp
-                // TODO: ganti nomor WA dengan data user dari BE
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radius.full))
                         .background(Terracotta)
                         .clickable {
-                            val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/${jastip.user.waNumber}".toUri())
-                            context.startActivity(intent)
+                            openWhatsApp(
+                                context, jastip.user.waNumber,
+                                waMessageJastip(jastip.fromLocation, jastip.toLocation)
+                            )
                         }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
