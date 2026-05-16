@@ -45,10 +45,23 @@ import com.titipin.app.ui.theme.*
 fun HomeScreen(
     onNavigateToJastip: () -> Unit = {},
     onNavigateToPreloved: () -> Unit = {},
+    onNavigateToPengaturan: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    // Setup Profile Dialog — muncul pertama kali jika WA belum diisi
+    if (uiState.showSetupProfile) {
+        SetupProfileDialog(
+            userName      = uiState.userName,
+            onDismiss     = { viewModel.dismissSetupProfile() },
+            onSetupNow    = {
+                viewModel.dismissSetupProfile()
+                onNavigateToPengaturan()
+            }
+        )
+    }
 
     TitipinPullRefresh(
         isRefreshing = uiState.isRefreshing,
@@ -585,4 +598,47 @@ fun ActivityItem(
         }
         if (time.isNotEmpty()) Text(time, fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily)
     }
+}
+
+// ── SETUP PROFILE DIALOG ──────────────────────────────────────────────
+@Composable
+private fun SetupProfileDialog(
+    userName: String,
+    onDismiss: () -> Unit,
+    onSetupNow: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Cream,
+        shape            = RoundedCornerShape(Radius.xl),
+        title = {
+            Column {
+                Text("Halo, ${userName.split(" ").firstOrNull() ?: userName}! 👋",
+                    fontFamily = FrauncesFamily, fontSize = 22.sp,
+                    fontWeight = FontWeight.Medium, color = Charcoal)
+            }
+        },
+        text = {
+            Text(
+                "Lengkapi nomor WhatsApp kamu agar buyer/seller bisa menghubungimu langsung.\n\nKamu bisa isi sekarang atau nanti di Pengaturan.",
+                fontFamily = DmSansFamily, fontSize = 13.sp, color = Charcoal60,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onSetupNow,
+                shape  = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                Text("Isi Sekarang", fontFamily = DmSansFamily, color = Cream,
+                    fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Nanti Saja", fontFamily = DmSansFamily, color = Charcoal60)
+            }
+        }
+    )
 }

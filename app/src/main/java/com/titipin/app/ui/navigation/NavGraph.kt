@@ -150,8 +150,9 @@ fun TitipinNavGraph() {
 
             composable(Routes.HOME) {
                 HomeScreen(
-                    onNavigateToJastip   = { navController.navigate(Routes.JASTIP) },
-                    onNavigateToPreloved = { navController.navigate(Routes.PRELOVED) }
+                    onNavigateToJastip      = { navController.navigate(Routes.JASTIP) },
+                    onNavigateToPreloved    = { navController.navigate(Routes.PRELOVED) },
+                    onNavigateToPengaturan  = { navController.navigate(Routes.PENGATURAN) }
                 )
             }
             composable(Routes.PRELOVED) {

@@ -129,6 +129,14 @@ fun ProfileScreen(
                                         fontSize = 11.sp, color = Cream.copy(alpha = 0.5f),
                                         fontFamily = DmSansFamily
                                     )
+                                    if (!user.status.isNullOrBlank()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            user.status,
+                                            fontSize = 11.sp, color = Cream.copy(alpha = 0.7f),
+                                            fontFamily = DmSansFamily
+                                        )
+                                    }
                                     Spacer(Modifier.height(6.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Box(
@@ -144,17 +152,19 @@ fun ProfileScreen(
                                                 fontFamily = DmSansFamily, letterSpacing = 0.5.sp
                                             )
                                         }
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(Radius.full))
-                                                .background(GoldPale)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                "⭐ —",
-                                                fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                                color = Gold, fontFamily = DmSansFamily
-                                            )
+                                        if (user.waNumber.isNotBlank()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(Radius.full))
+                                                    .background(GoldPale)
+                                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                            ) {
+                                                Text(
+                                                    "📱 ${maskWaNumber(user.waNumber)}",
+                                                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                                    color = Gold, fontFamily = DmSansFamily
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -267,6 +277,14 @@ fun ProfileScreen(
             }
         }
     }
+}
+
+// Sensor WA: 0812-xxxx-8901
+private fun maskWaNumber(wa: String): String {
+    val digits = wa.filter { it.isDigit() }
+    return if (digits.length >= 6) {
+        "${digits.take(4)}-xxxx-${digits.takeLast(4)}"
+    } else wa
 }
 
 // ── MENU ITEM ─────────────────────────────────────────────────────

@@ -24,25 +24,26 @@ import javax.inject.Inject
 data class HomeUiState(
     val userName: String = "",
     val userInitials: String = "",
-    // ── Raw data ──────────────────────────────────────────────────
+    // ── Raw data ────────────────────────────────────────────────────────────
     val allJastip: List<JastipDto> = emptyList(),
     val allPreloved: List<PrelovedDto> = emptyList(),
     val allJastipRequests: List<RequestDto> = emptyList(),
     val allPrelovedRequests: List<PrelovedRequestDto> = emptyList(),
-    // ── Derived: recent activity feed ─────────────────────────────
+    // ── Derived: recent activity feed ───────────────────────────────────
     val recentJastip: List<JastipDto> = emptyList(),
     val recentPreloved: List<PrelovedDto> = emptyList(),
     val recentJastipRequests: List<RequestDto> = emptyList(),
     val recentPrelovedRequests: List<PrelovedRequestDto> = emptyList(),
-    // ── Counts ────────────────────────────────────────────────────
+    // ── Counts ────────────────────────────────────────────────────────────
     val jastipCount: Int = 0,
     val prelovedCount: Int = 0,
     val jastipRequestCount: Int = 0,
     val prelovedRequestCount: Int = 0,
-    // ── State ─────────────────────────────────────────────────────
+    // ── State ────────────────────────────────────────────────────────────
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    // ── Search ───────────────────────────────────────────────────
+    val showSetupProfile: Boolean = false,   // true jika WA number belum diisi
+    // ── Search ────────────────────────────────────────────────────────────
     val searchQuery: String = "",
     val searchJastip: List<JastipDto> = emptyList(),
     val searchPreloved: List<PrelovedDto> = emptyList(),
@@ -67,11 +68,16 @@ class HomeViewModel @Inject constructor(
     fun loadData() {
         viewModelScope.launch {
             val name = dataStore.userName.first() ?: ""
+            val wa   = dataStore.userWaNumber.first() ?: ""
             val initials = name.trim()
                 .split(" ").filter { it.isNotBlank() }
                 .take(2).joinToString("") { it.first().uppercase() }
 
-            _uiState.value = _uiState.value.copy(userName = name, userInitials = initials)
+            _uiState.value = _uiState.value.copy(
+                userName         = name,
+                userInitials     = initials,
+                showSetupProfile = wa.isBlank() && name.isNotBlank()
+            )
 
             // Paralel fetch 4 endpoint publik
             val jastipDeferred          = async { jastipRepository.getJastipList() }
@@ -102,6 +108,10 @@ class HomeViewModel @Inject constructor(
                 isLoading = false
             )
         }
+    }
+
+    fun dismissSetupProfile() {
+        _uiState.value = _uiState.value.copy(showSetupProfile = false)
     }
 
     fun refresh() {

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -15,11 +17,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,10 +34,41 @@ fun PengaturanScreen(
     viewModel: PengaturanViewModel = hiltViewModel()
 ) {
     val uiState     by viewModel.uiState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
     val notifJastip by viewModel.notifJastip.collectAsState()
     val notifPesan  by viewModel.notifPesan.collectAsState()
 
-    Scaffold(containerColor = Cream) { padding ->
+    var showEditProfileSheet by remember { mutableStateOf(false) }
+    var showEditWaSheet      by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(actionState) {
+        when (actionState) {
+            is PengaturanActionState.Success -> {
+                viewModel.resetActionState()
+                showEditProfileSheet = false
+                showEditWaSheet = false
+                scope.launch { snackbarHostState.showSnackbar("Profil berhasil diperbarui ✔") }
+            }
+            is PengaturanActionState.Error -> {
+                scope.launch { snackbarHostState.showSnackbar((actionState as PengaturanActionState.Error).message) }
+                viewModel.resetActionState()
+            }
+            else -> {}
+        }
+    }
+
+    Scaffold(
+        containerColor = Cream,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(data, containerColor = Charcoal, contentColor = Cream,
+                    actionColor = Terracotta, shape = RoundedCornerShape(Radius.md))
+            }
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -115,22 +152,20 @@ fun PengaturanScreen(
                             }
                         }
 
-                        // Edit Profil — placeholder, nunggu BE endpoint
+                        // Edit Profil
                         PengaturanMenuItem(
-                            emoji    = "👤",
-                            label    = "Edit Profil",
-                            subtitle = "Ubah nama dan foto profil",
-                            badge    = "Segera",
-                            onClick  = { /* TODO: nunggu BE PUT /users/{id} */ }
+                            emoji   = "👤",
+                            label   = "Edit Profil",
+                            subtitle = "Ubah nama dan status profil",
+                            onClick = { showEditProfileSheet = true }
                         )
 
                         // No. WhatsApp
                         PengaturanMenuItem(
-                            emoji    = "📱",
-                            label    = "No. WhatsApp",
-                            subtitle = user.waNumber.ifEmpty { "Belum diisi" },
-                            badge    = "Segera",
-                            onClick  = { /* TODO: nunggu BE */ }
+                            emoji   = "📱",
+                            label   = "No. WhatsApp",
+                            subtitle = user.waNumber.ifEmpty { "Belum diisi — ketuk untuk mengisi" },
+                            onClick = { showEditWaSheet = true }
                         )
 
                         // Ubah Password
@@ -303,6 +338,31 @@ fun PengaturanScreen(
             }
         }
     }
+
+    // ── Edit Profil Bottom Sheet ───────────────────────────────────
+    if (showEditProfileSheet) {
+        val currentUser = (uiState as? PengaturanUiState.Ready)?.user
+        EditProfileSheet(
+            currentName   = currentUser?.name.orEmpty(),
+            currentStatus = currentUser?.status.orEmpty(),
+            isSaving      = actionState is PengaturanActionState.Loading,
+            onDismiss     = { showEditProfileSheet = false },
+            onSave        = { name, status ->
+                viewModel.updateProfile(name = name.trim(), status = status.trim().ifEmpty { null })
+            }
+        )
+    }
+
+    // ── Edit WA Bottom Sheet ───────────────────────────────────────
+    if (showEditWaSheet) {
+        val currentUser = (uiState as? PengaturanUiState.Ready)?.user
+        EditWaSheet(
+            currentWa = currentUser?.waNumber.orEmpty(),
+            isSaving  = actionState is PengaturanActionState.Loading,
+            onDismiss = { showEditWaSheet = false },
+            onSave    = { wa -> viewModel.updateProfile(waNumber = wa.trim()) }
+        )
+    }
 }
 
 // ── Reusable components ────────────────────────────────────────────
@@ -389,4 +449,130 @@ private fun TitipinSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) 
             uncheckedBorderColor    = CreamDark
         )
     )
+}
+
+// ── EDIT PROFILE SHEET ────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditProfileSheet(
+    currentName: String,
+    currentStatus: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (name: String, status: String) -> Unit
+) {
+    var name   by remember { mutableStateOf(currentName) }
+    var status by remember { mutableStateOf(currentStatus) }
+    val focusManager = LocalFocusManager.current
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text("Edit Profil", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                fontWeight = FontWeight.Medium, color = Charcoal)
+            Text("NAMA", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                color = Charcoal60, fontFamily = DmSansFamily)
+            OutlinedTextField(
+                value = name, onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Nama lengkap", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor          = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Text("STATUS / BIO", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                color = Charcoal60, fontFamily = DmSansFamily)
+            OutlinedTextField(
+                value = status, onValueChange = { status = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Contoh: Siap nitip dari Jakarta!", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor          = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Button(
+                onClick = { onSave(name, status) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled  = name.isNotBlank() && !isSaving,
+                shape    = RoundedCornerShape(Radius.full),
+                colors   = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Simpan", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+                }
+            }
+        }
+    }
+}
+
+// ── EDIT WA SHEET ─────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditWaSheet(
+    currentWa: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (wa: String) -> Unit
+) {
+    var wa by remember { mutableStateOf(currentWa) }
+    val focusManager = LocalFocusManager.current
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text("Nomor WhatsApp", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                fontWeight = FontWeight.Medium, color = Charcoal)
+            Text(
+                "Nomor WA kamu digunakan untuk dihubungi pembeli/penjual. Hanya ditampilkan secara tersensor.",
+                fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal60, lineHeight = 18.sp
+            )
+            OutlinedTextField(
+                value = wa, onValueChange = { wa = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("08xxxxxxxxxx", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction    = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor          = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Button(
+                onClick = { onSave(wa) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled  = wa.length >= 10 && !isSaving,
+                shape    = RoundedCornerShape(Radius.full),
+                colors   = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Simpan", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+                }
+            }
+        }
+    }
 }
