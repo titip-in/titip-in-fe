@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.JastipDto
+import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.repository.JastipRepository
+import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,12 +19,15 @@ import javax.inject.Inject
 
 sealed class JastipSayaState {
     object Loading : JastipSayaState()
-    data class Success(val data: List<JastipDto>) : JastipSayaState()
+    data class Success(
+        val listings: List<JastipDto> = emptyList(),
+        val requests: List<RequestDto> = emptyList()
+    ) : JastipSayaState()
     data class Error(val message: String) : JastipSayaState()
 }
 
 sealed class JastipSayaActionState {
-    object Idle : JastipSayaActionState()
+    object Idle    : JastipSayaActionState()
     object Loading : JastipSayaActionState()
     object Success : JastipSayaActionState()
     data class Error(val message: String) : JastipSayaActionState()
@@ -29,11 +35,12 @@ sealed class JastipSayaActionState {
 
 @HiltViewModel
 class JastipSayaViewModel @Inject constructor(
-    private val repository: JastipRepository,
+    private val jastipRepository: JastipRepository,
+    private val requestRepository: RequestRepository,
     private val dataStore: DataStoreManager
 ) : ViewModel() {
 
-    private val _listState = MutableStateFlow<JastipSayaState>(JastipSayaState.Loading)
+    private val _listState   = MutableStateFlow<JastipSayaState>(JastipSayaState.Loading)
     val listState: StateFlow<JastipSayaState> = _listState.asStateFlow()
 
     private val _actionState = MutableStateFlow<JastipSayaActionState>(JastipSayaActionState.Idle)
@@ -44,23 +51,23 @@ class JastipSayaViewModel @Inject constructor(
     fun loadData() {
         viewModelScope.launch {
             _listState.value = JastipSayaState.Loading
-            val userId = dataStore.userId.first() ?: run {
-                _listState.value = JastipSayaState.Error("Sesi tidak ditemukan")
-                return@launch
-            }
-            _listState.value = when (val result = repository.getMyJastipList(userId)) {
-                is Result.Success -> JastipSayaState.Success(result.data)
-                is Result.Error   -> JastipSayaState.Error(result.message)
-            }
+            val listingsDeferred = async { jastipRepository.getMyJastipList() }
+            val requestsDeferred = async { requestRepository.getMyRequestList() }
+
+            val listings = (listingsDeferred.await() as? Result.Success)?.data ?: emptyList()
+            val requests = (requestsDeferred.await() as? Result.Success)?.data ?: emptyList()
+
+            _listState.value = JastipSayaState.Success(listings = listings, requests = requests)
         }
     }
 
-    fun updateStatus(id: String, status: String) {
+    // ── Jastip listing actions ─────────────────────────────────────
+    fun updateJastipStatus(id: String, status: String) {
         viewModelScope.launch {
             _actionState.value = JastipSayaActionState.Loading
-            _actionState.value = when (val result = repository.updateStatus(id, status)) {
+            _actionState.value = when (val r = jastipRepository.updateStatus(id, status)) {
                 is Result.Success -> JastipSayaActionState.Success
-                is Result.Error   -> JastipSayaActionState.Error(result.message)
+                is Result.Error   -> JastipSayaActionState.Error(r.message)
             }
         }
     }
@@ -68,9 +75,30 @@ class JastipSayaViewModel @Inject constructor(
     fun deleteJastip(id: String) {
         viewModelScope.launch {
             _actionState.value = JastipSayaActionState.Loading
-            _actionState.value = when (val result = repository.deleteJastip(id)) {
+            _actionState.value = when (val r = jastipRepository.deleteJastip(id)) {
                 is Result.Success -> JastipSayaActionState.Success
-                is Result.Error   -> JastipSayaActionState.Error(result.message)
+                is Result.Error   -> JastipSayaActionState.Error(r.message)
+            }
+        }
+    }
+
+    // ── Jastip request actions ─────────────────────────────────────
+    fun updateRequestStatus(id: String, status: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipSayaActionState.Loading
+            _actionState.value = when (val r = requestRepository.updateRequestStatus(id, status)) {
+                is Result.Success -> JastipSayaActionState.Success
+                is Result.Error   -> JastipSayaActionState.Error(r.message)
+            }
+        }
+    }
+
+    fun deleteRequest(id: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipSayaActionState.Loading
+            _actionState.value = when (val r = requestRepository.deleteRequest(id)) {
+                is Result.Success -> JastipSayaActionState.Success
+                is Result.Error   -> JastipSayaActionState.Error(r.message)
             }
         }
     }

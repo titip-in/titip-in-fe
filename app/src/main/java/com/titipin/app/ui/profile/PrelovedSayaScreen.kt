@@ -14,13 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.PrelovedDto
+import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.conditionLabel
+import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
@@ -31,11 +32,13 @@ import kotlinx.coroutines.launch
 fun PrelovedSayaScreen(
     onBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToRequestDetail: (String) -> Unit = {},
     viewModel: PrelovedSayaViewModel = hiltViewModel()
 ) {
     val listState   by viewModel.listState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
-    var selectedTab by remember { mutableStateOf(0) }   // 0 = Dijual, 1 = Terjual/Reserved
+    // 0=Dijual, 1=Dicari (Request), 2=Arsip
+    var selectedTab by remember { mutableStateOf(0) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -47,9 +50,8 @@ fun PrelovedSayaScreen(
                 viewModel.loadData()
             }
             is PrelovedSayaActionState.Error -> {
-                val msg = (actionState as PrelovedSayaActionState.Error).message
+                scope.launch { snackbarHostState.showSnackbar((actionState as PrelovedSayaActionState.Error).message) }
                 viewModel.resetActionState()
-                scope.launch { snackbarHostState.showSnackbar(msg) }
             }
             else -> {}
         }
@@ -68,7 +70,6 @@ fun PrelovedSayaScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .statusBarsPadding()
         ) {
             // ── HEADER ────────────────────────────────────────────
             Row(
@@ -89,7 +90,7 @@ fun PrelovedSayaScreen(
                 }
             }
 
-            // ── TAB ───────────────────────────────────────────────
+            // ── TAB (3 tab) ───────────────────────────────────────
             Row(
                 modifier = Modifier
                     .padding(horizontal = Spacing.lg)
@@ -97,7 +98,7 @@ fun PrelovedSayaScreen(
                     .background(CreamDark)
                     .padding(4.dp)
             ) {
-                listOf("Dijual", "Terjual").forEachIndexed { index, label ->
+                listOf("Dijual", "Dicari", "Arsip").forEachIndexed { index, label ->
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -107,7 +108,7 @@ fun PrelovedSayaScreen(
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             fontFamily = DmSansFamily,
                             color = if (selectedTab == index) Cream else Charcoal60)
                     }
@@ -117,7 +118,7 @@ fun PrelovedSayaScreen(
             Spacer(Modifier.height(Spacing.md))
 
             // ── CONTENT ───────────────────────────────────────────
-            when (listState) {
+            when (val state = listState) {
                 is PrelovedSayaState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
@@ -129,9 +130,7 @@ fun PrelovedSayaScreen(
                             modifier = Modifier.padding(Spacing.lg)) {
                             Text("😕", fontSize = 40.sp)
                             Spacer(Modifier.height(8.dp))
-                            Text((listState as PrelovedSayaState.Error).message,
-                                fontFamily = DmSansFamily, color = Charcoal60,
-                                fontSize = 13.sp, textAlign = TextAlign.Center)
+                            Text(state.message, fontFamily = DmSansFamily, color = Charcoal60, fontSize = 13.sp)
                             Spacer(Modifier.height(12.dp))
                             TextButton(onClick = { viewModel.loadData() }) {
                                 Text("Coba lagi", color = Terracotta, fontFamily = DmSansFamily)
@@ -140,49 +139,98 @@ fun PrelovedSayaScreen(
                     }
                 }
                 is PrelovedSayaState.Success -> {
-                    val allData = (listState as PrelovedSayaState.Success).data
-                    val filteredData = if (selectedTab == 0)
-                        allData.filter { it.status == "AVAILABLE" }
-                    else
-                        allData.filter { it.status == "SOLD" || it.status == "CLOSED" }
-
                     val isActionLoading = actionState is PrelovedSayaActionState.Loading
 
-                    if (filteredData.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(if (selectedTab == 0) "🛍️" else "✅", fontSize = 48.sp)
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    if (selectedTab == 0) "Belum ada barang dijual"
-                                    else "Belum ada barang terjual",
-                                    fontFamily = FrauncesFamily, color = Charcoal,
-                                    fontSize = 16.sp, fontWeight = FontWeight.Medium
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    if (selectedTab == 0) "Post barang preloved kamu sekarang!"
-                                    else "Barang yang terjual akan muncul di sini.",
-                                    fontFamily = DmSansFamily, color = Charcoal60, fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                )
+                    when (selectedTab) {
+                        // ── Tab 0: Dijual (AVAILABLE) ─────────────
+                        0 -> {
+                            val data = state.listings.filter { it.status == "AVAILABLE" }
+                            if (data.isEmpty()) {
+                                SayaEmptyState(emoji = "🛍️", title = "Belum ada barang dijual",
+                                    subtitle = "Post barang preloved kamu dari tab Preloved!")
+                            } else {
+                                LazyColumn(
+                                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                ) {
+                                    items(data, key = { it.id }) { item ->
+                                        PrelovedSayaCard(
+                                            item            = item,
+                                            isActionLoading = isActionLoading,
+                                            onLihatDetail   = { onNavigateToDetail(item.id) },
+                                            onMarkSold      = { viewModel.updateListingStatus(item.id, "SOLD") },
+                                            onHapus         = { viewModel.deleteListing(item.id) }
+                                        )
+                                    }
+                                    item { Spacer(Modifier.height(24.dp)) }
+                                }
                             }
                         }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = Spacing.lg),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                        ) {
-                            items(filteredData, key = { it.id }) { item ->
-                                PrelovedSayaCard(
-                                    item            = item,
-                                    isActionLoading = isActionLoading,
-                                    onLihatDetail   = { onNavigateToDetail(item.id) },
-                                    onMarkSold      = { viewModel.updateStatus(item.id, "SOLD") },
-                                    onHapus         = { viewModel.deletePreloved(item.id) }
-                                )
+
+                        // ── Tab 1: Dicari (OPEN request) ──────────
+                        1 -> {
+                            val data = state.requests.filter { it.status == "OPEN" }
+                            if (data.isEmpty()) {
+                                SayaEmptyState(emoji = "🔍", title = "Belum ada pencarian aktif",
+                                    subtitle = "Post permintaan barang dari tab Preloved → Dicari!")
+                            } else {
+                                LazyColumn(
+                                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                ) {
+                                    items(data, key = { it.id }) { req ->
+                                        PrelovedRequestSayaCard(
+                                            request         = req,
+                                            isActionLoading = isActionLoading,
+                                            onClick         = { onNavigateToRequestDetail(req.id) },
+                                            onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
+                                            onHapus         = { viewModel.deleteRequest(req.id) }
+                                        )
+                                    }
+                                    item { Spacer(Modifier.height(24.dp)) }
+                                }
                             }
-                            item { Spacer(Modifier.height(24.dp)) }
+                        }
+
+                        // ── Tab 2: Arsip (SOLD/CLOSED) ────────────
+                        2 -> {
+                            val soldListings    = state.listings.filter { it.status == "SOLD" || it.status == "CLOSED" }
+                            val closedRequests  = state.requests.filter { it.status == "CLOSED" }
+                            if (soldListings.isEmpty() && closedRequests.isEmpty()) {
+                                SayaEmptyState(emoji = "📦", title = "Belum ada arsip",
+                                    subtitle = "Barang terjual & pencarian ditutup muncul di sini.")
+                            } else {
+                                LazyColumn(
+                                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                ) {
+                                    if (soldListings.isNotEmpty()) {
+                                        item { SayaSectionLabel("🛍️ BARANG DIJUAL") }
+                                        items(soldListings, key = { "l_${it.id}" }) { item ->
+                                            PrelovedSayaCard(
+                                                item            = item,
+                                                isActionLoading = isActionLoading,
+                                                onLihatDetail   = { onNavigateToDetail(item.id) },
+                                                onMarkSold      = null,
+                                                onHapus         = { viewModel.deleteListing(item.id) }
+                                            )
+                                        }
+                                    }
+                                    if (closedRequests.isNotEmpty()) {
+                                        item { SayaSectionLabel("🔍 PENCARIAN DITUTUP") }
+                                        items(closedRequests, key = { "r_${it.id}" }) { req ->
+                                            PrelovedRequestSayaCard(
+                                                request         = req,
+                                                isActionLoading = isActionLoading,
+                                                onClick         = { onNavigateToRequestDetail(req.id) },
+                                                onTutup         = null,
+                                                onHapus         = { viewModel.deleteRequest(req.id) }
+                                            )
+                                        }
+                                    }
+                                    item { Spacer(Modifier.height(24.dp)) }
+                                }
+                            }
                         }
                     }
                 }
@@ -191,13 +239,13 @@ fun PrelovedSayaScreen(
     }
 }
 
-// ── PRELOVED SAYA CARD ────────────────────────────────────────────
+// ── PRELOVED LISTING CARD ─────────────────────────────────────────
 @Composable
 private fun PrelovedSayaCard(
     item: PrelovedDto,
     isActionLoading: Boolean,
     onLihatDetail: () -> Unit,
-    onMarkSold: () -> Unit,
+    onMarkSold: (() -> Unit)?,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -210,100 +258,55 @@ private fun PrelovedSayaCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(modifier = Modifier.padding(Spacing.md)) {
-
-            // ── Thumbnail / category box ──────────────────────────
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(Radius.md))
-                    .background(TerracottaPale),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(Radius.md))
+                .background(TerracottaPale), contentAlignment = Alignment.Center) {
                 Text(categoryEmojiForPreloved(item.category?.name), fontSize = 26.sp)
             }
-
             Spacer(Modifier.width(Spacing.md))
-
-            // ── Info ──────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
+                Row(modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                    verticalAlignment = Alignment.CenterVertically) {
                     Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         color = Charcoal, fontFamily = DmSansFamily,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f))
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.full))
-                            .background(
-                                when (item.status) {
-                                    "AVAILABLE" -> SagePale
-                                    "SOLD"      -> GoldPale
-                                    else        -> TerracottaPale
-                                }
-                            )
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            when (item.status) {
-                                "AVAILABLE" -> "DIJUAL"
-                                "SOLD"      -> "TERJUAL"
-                                else        -> "DITUTUP"
-                            },
-                            fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.8.sp,
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full))
+                        .background(when (item.status) {
+                            "AVAILABLE" -> SagePale; "SOLD" -> GoldPale; else -> TerracottaPale
+                        }).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text(when (item.status) {
+                            "AVAILABLE" -> "DIJUAL"; "SOLD" -> "TERJUAL"; else -> "DITUTUP"
+                        }, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
                             color = when (item.status) {
-                                "AVAILABLE" -> Sage
-                                "SOLD"      -> Gold
-                                else        -> Terracotta
-                            },
-                            fontFamily = DmSansFamily
-                        )
+                                "AVAILABLE" -> Sage; "SOLD" -> Gold; else -> Terracotta
+                            }, fontFamily = DmSansFamily)
                     }
                 }
-
                 Spacer(Modifier.height(2.dp))
                 Text(item.formattedPrice(), fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = Terracotta, fontFamily = DmSansFamily)
                 Spacer(Modifier.height(2.dp))
                 Text("${item.conditionLabel()} · ${timeAgo(item.createdAt ?: item.updatedAt.orEmpty())}",
                     fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
-
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
                 Spacer(Modifier.height(8.dp))
-
-                // ── Aksi ─────────────────────────────────────────
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
                     modifier = Modifier.fillMaxWidth()) {
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.full))
-                            .background(CreamDark)
-                            .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("🗑 Hapus", fontSize = 11.sp, color = Charcoal60,
-                            fontFamily = DmSansFamily, fontWeight = FontWeight.Medium)
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                        .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Text("🗑 Hapus", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily,
+                            fontWeight = FontWeight.Medium)
                     }
-
-                    if (isAvailable) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(Radius.full))
-                                .background(Terracotta)
-                                .clickable(enabled = !isActionLoading) { onMarkSold() }
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    if (isAvailable && onMarkSold != null) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Terracotta)
+                            .clickable(enabled = !isActionLoading) { onMarkSold() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center) {
                             if (isActionLoading) {
-                                CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp,
-                                    modifier = Modifier.size(12.dp))
+                                CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
                             } else {
                                 Text("✓ Tandai Terjual", fontSize = 11.sp, color = Cream,
                                     fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
@@ -314,33 +317,102 @@ private fun PrelovedSayaCard(
             }
         }
     }
-
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            containerColor   = Cream,
-            shape            = RoundedCornerShape(Radius.xl),
-            title = {
-                Text("Hapus Barang?", fontFamily = FrauncesFamily, fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium, color = Charcoal)
-            },
-            text = {
-                Text("\"${item.title}\" akan dihapus permanen dari daftar preloved kamu.",
-                    fontFamily = DmSansFamily, fontSize = 13.sp, color = Charcoal60,
-                    lineHeight = 20.sp)
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showDeleteDialog = false; onHapus() },
-                    shape = RoundedCornerShape(Radius.full),
-                    colors = ButtonDefaults.buttonColors(containerColor = Terracotta)
-                ) { Text("Hapus", fontFamily = DmSansFamily, color = Cream) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Batal", fontFamily = DmSansFamily, color = Charcoal60)
+        SayaDeleteDialog(
+            title   = "Hapus Barang?",
+            message = "\"${item.title}\" akan dihapus permanen.",
+            onConfirm = { showDeleteDialog = false; onHapus() },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
+}
+
+// ── PRELOVED REQUEST CARD ─────────────────────────────────────────
+@Composable
+private fun PrelovedRequestSayaCard(
+    request: PrelovedRequestDto,
+    isActionLoading: Boolean,
+    onClick: () -> Unit,
+    onTutup: (() -> Unit)?,
+    onHapus: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val isOpen = request.status == "OPEN"
+
+    Card(
+        modifier  = Modifier.fillMaxWidth().clickable { onClick() },
+        shape     = RoundedCornerShape(Radius.lg),
+        colors    = CardDefaults.cardColors(containerColor = Cream),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(request.title, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                    color = Charcoal, fontFamily = FrauncesFamily,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full))
+                    .background(if (isOpen) SagePale else CreamDark)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)) {
+                    Text(if (isOpen) "OPEN" else "CLOSED", fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                        color = if (isOpen) Sage else Charcoal30, fontFamily = DmSansFamily)
                 }
             }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val budget = request.formattedMaxPrice()
+                if (budget != null) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text("💰 $budget", fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    }
+                }
+                if (request.category != null) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text("${request.category.icon ?: ""} ${request.category.name}",
+                            fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(timeAgo(request.createdAt.orEmpty()), fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+            Spacer(Modifier.height(Spacing.sm))
+            HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
+            Spacer(Modifier.height(Spacing.sm))
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                    .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Medium)
+                }
+                if (onTutup != null && isOpen) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                        .clickable(enabled = !isActionLoading) { onTutup() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center) {
+                        if (isActionLoading) {
+                            CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
+                        } else {
+                            Text("✓ Tutup", fontSize = 12.sp, color = Cream,
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showDeleteDialog) {
+        SayaDeleteDialog(
+            title   = "Hapus Pencarian?",
+            message = "Pencarian \"${request.title}\" akan dihapus permanen.",
+            onConfirm = { showDeleteDialog = false; onHapus() },
+            onDismiss = { showDeleteDialog = false }
         )
     }
 }

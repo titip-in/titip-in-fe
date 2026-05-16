@@ -179,7 +179,15 @@ fun TitipinNavGraph() {
             }
 
             composable(Routes.JASTIP_SAYA) {
-                JastipSayaScreen(onBack = { navController.popBackStack() })
+                JastipSayaScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Routes.jastipDetail(id))
+                    },
+                    onNavigateToRequestDetail = { id ->
+                        navController.navigate(Routes.jastipRequestDetail(id))
+                    }
+                )
             }
 
             composable(Routes.PRELOVED_SAYA) {
@@ -187,6 +195,9 @@ fun TitipinNavGraph() {
                     onBack = { navController.popBackStack() },
                     onNavigateToDetail = { id ->
                         navController.navigate(Routes.prelovedDetail(id))
+                    },
+                    onNavigateToRequestDetail = { id ->
+                        navController.navigate(Routes.prelovedRequestDetail(id))
                     }
                 )
             }
