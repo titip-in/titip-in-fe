@@ -22,6 +22,12 @@ interface ApiService {
     @PUT("v1/me")
     suspend fun updateMe(@Body request: UpdateProfileRequest): Response<ApiResponse<UserData>>
 
+    // ── CATEGORY ───────────────────────────────────────────────────
+    @GET("v1/categories")
+    suspend fun getCategories(
+        @Query("type") type: String? = null
+    ): Response<ApiResponse<List<CategoryDto>>>
+
     // ── JASTIP ────────────────────────────────────────────────────
     @GET("jastip")
     suspend fun getJastipList(): Response<ApiResponse<List<JastipDto>>>
