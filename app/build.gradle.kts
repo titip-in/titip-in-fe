@@ -23,14 +23,11 @@ android {
 
     buildTypes {
         debug {
-            // Ganti URL ini nanti waktu BE udah deploy ke EC2
-            // Selama development lokal, pakai IP komputer temenmu
-            // misal: "http://192.168.1.10:8080/"
-            buildConfigField("String", "BASE_URL", "\"http://192.168.1.11:8080/\"")
+            buildConfigField("String", "BASE_URL", "\"https://titipin-api.bccdev.id/api/\"")
             isDebuggable = true
         }
         release {
-            buildConfigField("String", "BASE_URL", "\"https://api.titip.in/v1/\"")
+            buildConfigField("String", "BASE_URL", "\"https://titipin-api.bccdev.id/api/\"")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
