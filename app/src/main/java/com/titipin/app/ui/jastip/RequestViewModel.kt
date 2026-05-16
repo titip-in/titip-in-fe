@@ -2,6 +2,7 @@ package com.titipin.app.ui.jastip
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.CategoryDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.repository.CategoryRepository
@@ -11,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,7 +39,8 @@ sealed class RequestCategoryState {
 @HiltViewModel
 class RequestViewModel @Inject constructor(
     private val repository: RequestRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val dataStore: DataStoreManager
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<RequestListState>(RequestListState.Loading)
@@ -49,15 +52,22 @@ class RequestViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<RequestActionState>(RequestActionState.Idle)
     val actionState: StateFlow<RequestActionState> = _actionState.asStateFlow()
 
+    private val _detailState = MutableStateFlow<RequestActionState>(RequestActionState.Idle)
+    val detailState: StateFlow<RequestActionState> = _detailState.asStateFlow()
+
     private val _categoryState = MutableStateFlow<RequestCategoryState>(RequestCategoryState.Loading)
     val categoryState: StateFlow<RequestCategoryState> = _categoryState.asStateFlow()
 
     private val _selectedCategoryId = MutableStateFlow<Int?>(null)
     val selectedCategoryId: StateFlow<Int?> = _selectedCategoryId.asStateFlow()
 
+    private val _currentUserId = MutableStateFlow<String?>(null)
+    val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
     init {
         loadRequestList()
         loadCategories()
+        loadCurrentUser()
     }
 
     fun loadRequestList() {
@@ -95,6 +105,22 @@ class RequestViewModel @Inject constructor(
         _selectedCategoryId.value = categoryId
     }
 
+    private fun loadCurrentUser() {
+        viewModelScope.launch {
+            _currentUserId.value = dataStore.userId.firstOrNull()
+        }
+    }
+
+    fun loadDetail(id: String) {
+        viewModelScope.launch {
+            _detailState.value = RequestActionState.Loading
+            _detailState.value = when (val result = repository.getRequestDetail(id)) {
+                is Result.Success -> RequestActionState.Success(result.data)
+                is Result.Error -> RequestActionState.Error(result.message)
+            }
+        }
+    }
+
     fun createRequest(
         categoryId: Int?,
         title: String,
@@ -113,6 +139,26 @@ class RequestViewModel @Inject constructor(
 
     fun showFeatureInProgress() {
         _actionState.value = RequestActionState.FeatureInProgress
+    }
+
+    fun updateStatus(id: String, status: String) {
+        viewModelScope.launch {
+            _actionState.value = RequestActionState.Loading
+            _actionState.value = when (val result = repository.updateRequestStatus(id, status)) {
+                is Result.Success -> RequestActionState.Success(result.data)
+                is Result.Error -> RequestActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun deleteRequest(id: String) {
+        viewModelScope.launch {
+            _actionState.value = RequestActionState.Loading
+            _actionState.value = when (val result = repository.deleteRequest(id)) {
+                is Result.Success -> RequestActionState.Success()
+                is Result.Error -> RequestActionState.Error(result.message)
+            }
+        }
     }
 
     fun resetActionState() { _actionState.value = RequestActionState.Idle }

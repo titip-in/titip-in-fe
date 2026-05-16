@@ -26,6 +26,7 @@ import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.shared.waMessageJastip
+import com.titipin.app.shared.waMessageTakeRequest
 import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.theme.*
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun JastipScreen(
     onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToRequestDetail: (String) -> Unit = {},
     onNavigateToOffer: (from: String, to: String, name: String, notes: String) -> Unit = { _, _, _, _ -> },
     viewModel: JastipViewModel = hiltViewModel(),
     requestViewModel: RequestViewModel = hiltViewModel()
@@ -209,9 +211,7 @@ fun JastipScreen(
                             categoryState = requestCategoryState,
                             selectedCategoryId = selectedRequestCategoryId,
                             onCategorySelected = requestViewModel::selectCategory,
-                            onTake = {
-                                requestViewModel.showFeatureInProgress()
-                            },
+                            onCardClick = { request -> onNavigateToRequestDetail(request.id) },
                             onRetry = { requestViewModel.loadRequestList() }
                         )
                     }
@@ -361,7 +361,7 @@ fun JastipRequestContent(
     categoryState: RequestCategoryState,
     selectedCategoryId: Int?,
     onCategorySelected: (Int?) -> Unit,
-    onTake: (RequestDto) -> Unit,
+    onCardClick: (RequestDto) -> Unit,
     onRetry: () -> Unit
 ) {
     when (listState) {
@@ -459,7 +459,7 @@ fun JastipRequestContent(
                         RequestCard(
                             request       = request,
                             isTakeLoading = isTakeLoading,
-                            onTake        = { onTake(request) }
+                            onClick = { onCardClick(request) }
                         )
                     }
                 }
@@ -474,15 +474,18 @@ fun JastipRequestContent(
 fun RequestCard(
     request: RequestDto,
     isTakeLoading: Boolean,
-    onTake: () -> Unit
+    onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val createdAtLabel = timeAgo(request.createdAt ?: request.updatedAt.orEmpty())
     val initials = request.user.name.trim().split(" ")
         .filter { it.isNotBlank() }.take(2)
         .joinToString("") { it.first().uppercase() }
 
     Card(
-        modifier  = Modifier.fillMaxWidth(),
+        modifier  = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape     = RoundedCornerShape(Radius.lg),
         colors    = CardDefaults.cardColors(containerColor = Cream),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -562,20 +565,35 @@ fun RequestCard(
             HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
             Spacer(Modifier.height(Spacing.sm))
 
-            // ── Tombol Ambil ──────────────────────────────────────
+            // ── Tombol WhatsApp ───────────────────────────────────
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radius.full))
-                        .background(if (isTakeLoading) Terracotta.copy(alpha = 0.5f) else Terracotta)
-                        .clickable(enabled = !isTakeLoading) { onTake() }
-                        .padding(horizontal = 20.dp, vertical = 9.dp),
+                        .background(Terracotta)
+                        .clickable(enabled = !isTakeLoading && request.user.waNumber.isNotBlank()) {
+                            openWhatsApp(
+                                context,
+                                request.user.waNumber,
+                                waMessageTakeRequest(request.fromLocation, request.toLocation)
+                            )
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isTakeLoading) {
                         CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                     } else {
-                        Text("Ambil →", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cream, fontFamily = DmSansFamily)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("💬 ", fontSize = 12.sp)
+                            Text(
+                                text = "WhatsApp",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Cream,
+                                fontFamily = DmSansFamily
+                            )
+                        }
                     }
                 }
             }

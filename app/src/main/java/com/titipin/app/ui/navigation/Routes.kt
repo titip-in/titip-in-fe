@@ -16,6 +16,7 @@ object Routes {
 
     // Jastip sub-screens
     const val JASTIP_DETAIL_PATTERN = "jastip/{id}"
+    const val JASTIP_REQUEST_DETAIL_PATTERN = "jastip/request/{id}"
     const val JASTIP_SAYA           = "jastip_saya"
 
     // Preloved sub-screens
@@ -28,5 +29,6 @@ object Routes {
 
     // Helper
     fun jastipDetail(id: String)   = "jastip/$id"
+    fun jastipRequestDetail(id: String) = "jastip/request/$id"
     fun prelovedDetail(id: String) = "preloved/$id"
 }

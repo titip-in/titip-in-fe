@@ -45,6 +45,7 @@ fun UserContactPanel(
     status: String? = null,
     avatarUrl: String? = null,
     isOwner: Boolean = false,
+    ownerLabel: String = "Ini listing Anda",
     message: String = ""
 ) {
     val context = LocalContext.current
@@ -67,7 +68,7 @@ fun UserContactPanel(
                 fontFamily = DmSansFamily
             )
             Text(
-                text = if (isOwner) "Ini listing Anda" else status?.takeIf { it.isNotBlank() } ?: "Pengguna Titip.in",
+                text = if (isOwner) ownerLabel else status?.takeIf { it.isNotBlank() } ?: "Pengguna Titip.in",
                 fontSize = 11.sp,
                 color = Charcoal60,
                 fontFamily = DmSansFamily

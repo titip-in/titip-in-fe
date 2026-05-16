@@ -24,6 +24,7 @@ import com.titipin.app.ui.auth.LoginScreen
 import com.titipin.app.ui.auth.RegisterScreen
 import com.titipin.app.ui.home.HomeScreen
 import com.titipin.app.ui.jastip.JastipDetailScreen
+import com.titipin.app.ui.jastip.JastipRequestDetailScreen
 import com.titipin.app.ui.jastip.JastipScreen
 import com.titipin.app.ui.preloved.PrelovedDetailScreen
 import com.titipin.app.ui.preloved.PrelovedScreen
@@ -58,6 +59,7 @@ val routesWithoutBottomNav = listOf(
     Routes.LOGIN,
     Routes.REGISTER,
     Routes.JASTIP_DETAIL_PATTERN,
+    Routes.JASTIP_REQUEST_DETAIL_PATTERN,
     Routes.PRELOVED_DETAIL_PATTERN,
     Routes.JASTIP_SAYA,
     Routes.PRELOVED_SAYA,
@@ -176,6 +178,9 @@ fun TitipinNavGraph() {
                 JastipScreen(
                     onNavigateToDetail = { id ->
                         navController.navigate(Routes.jastipDetail(id))
+                    },
+                    onNavigateToRequestDetail = { id ->
+                        navController.navigate(Routes.jastipRequestDetail(id))
                     }
                 )
             }
@@ -184,6 +189,14 @@ fun TitipinNavGraph() {
                 val id = backStackEntry.arguments?.getString("id") ?: return@composable
                 JastipDetailScreen(
                     jastipId = id,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.JASTIP_REQUEST_DETAIL_PATTERN) { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id") ?: return@composable
+                JastipRequestDetailScreen(
+                    requestId = id,
                     onBack = { navController.popBackStack() }
                 )
             }
