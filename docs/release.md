@@ -26,10 +26,25 @@ The release build signs the APK when all of these environment variables are pres
 
 For GitHub Actions, store the keystore as base64 in `ANDROID_KEYSTORE_BASE64`, then add the other three values as repository secrets.
 
+Backend deployment also requires:
+
+- `BACKEND_HOST`
+- `BACKEND_USER`
+- `BACKEND_PORT`
+- `BACKEND_SSH_KEY`
+- `BACKEND_APK_DIR` (optional, defaults to `/var/www/titip-downloads/android`)
+
 ## GitHub Actions
 
 - `Android CI` runs on branch pushes and pull requests. It runs unit tests and builds the release APK.
-- `Android Release` runs manually or when pushing tags like `android-v1.0.0`. It requires signing secrets and uploads a signed APK artifact.
+- `Android Release` runs manually or when pushing tags like `titipin-v1.0.0`. It requires signing secrets, uploads a signed APK artifact, and deploys raw APK files to the backend VM.
+
+The backend deploy publishes both:
+
+```text
+titipin-v<version>.apk
+latest.apk
+```
 
 ## Publish Checklist
 

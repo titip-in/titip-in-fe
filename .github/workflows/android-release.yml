@@ -8,7 +8,7 @@ on:
 
 jobs:
   release-apk:
-    name: Build Signed APK
+    name: Build, Sign, and Deploy APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -46,9 +46,65 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      - name: Prepare APK files
+        id: prepare_apk
+        run: |
+          set -euo pipefail
+
+          APK_PATH="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' ! -name '*unsigned*' | head -n 1)"
+          test -n "$APK_PATH"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == titipin-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#titipin-v}"
+          else
+            VERSION="$(grep -m 1 'versionName' app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')"
+          fi
+
+          mkdir -p "$RUNNER_TEMP/apk-release"
+          VERSIONED_APK="titipin-v${VERSION}.apk"
+          cp "$APK_PATH" "$RUNNER_TEMP/apk-release/$VERSIONED_APK"
+          cp "$APK_PATH" "$RUNNER_TEMP/apk-release/latest.apk"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "versioned_apk=$VERSIONED_APK" >> "$GITHUB_OUTPUT"
+
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: titipin-signed-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: ${{ runner.temp }}/apk-release/*.apk
           if-no-files-found: error
+
+      - name: Deploy APK to backend VM
+        env:
+          BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
+          BACKEND_USER: ${{ secrets.BACKEND_USER }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
+          BACKEND_SSH_KEY: ${{ secrets.BACKEND_SSH_KEY }}
+          BACKEND_APK_DIR: ${{ secrets.BACKEND_APK_DIR || '/var/www/titip-downloads/android' }}
+        run: |
+          set -euo pipefail
+
+          test -n "$BACKEND_HOST"
+          test -n "$BACKEND_USER"
+          test -n "$BACKEND_PORT"
+          test -n "$BACKEND_SSH_KEY"
+          test -n "$BACKEND_APK_DIR"
+
+          SSH_KEY_PATH="$RUNNER_TEMP/backend_ssh_key"
+          printf '%s\n' "$BACKEND_SSH_KEY" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$BACKEND_PORT" "$BACKEND_HOST" >> ~/.ssh/known_hosts
+
+          ssh -i "$SSH_KEY_PATH" -p "$BACKEND_PORT" "$BACKEND_USER@$BACKEND_HOST" \
+            "mkdir -p '$BACKEND_APK_DIR'"
+
+          scp -i "$SSH_KEY_PATH" -P "$BACKEND_PORT" \
+            "$RUNNER_TEMP/apk-release/${{ steps.prepare_apk.outputs.versioned_apk }}" \
+            "$RUNNER_TEMP/apk-release/latest.apk" \
+            "$BACKEND_USER@$BACKEND_HOST:$BACKEND_APK_DIR/"
+
+          ssh -i "$SSH_KEY_PATH" -p "$BACKEND_PORT" "$BACKEND_USER@$BACKEND_HOST" \
+            "ls -lh '$BACKEND_APK_DIR/${{ steps.prepare_apk.outputs.versioned_apk }}' '$BACKEND_APK_DIR/latest.apk'"
