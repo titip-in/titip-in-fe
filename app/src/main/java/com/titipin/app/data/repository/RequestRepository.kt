@@ -15,7 +15,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data ?: emptyList())
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal memuat data")
+                response.toResultError("Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -42,7 +42,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal membuat request")
+                response.toResultError("Gagal membuat request")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -55,7 +55,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Request tidak ditemukan")
+                response.toResultError("Request tidak ditemukan")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -68,7 +68,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal update request")
+                response.toResultError("Gagal update request")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -81,7 +81,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mengubah request")
+                response.toResultError("Gagal mengubah request")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -94,7 +94,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(Unit)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal menghapus request")
+                response.toResultError("Gagal menghapus request")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -107,7 +107,7 @@ class RequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()?.data?.data.orEmpty())
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal memuat data")
+                response.toResultError("Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")

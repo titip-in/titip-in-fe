@@ -14,14 +14,38 @@ interface ApiService {
     @POST("v1/register")
     suspend fun register(@Body request: RegisterRequest): Response<ApiResponse<AuthResponse>>
 
+    @GET("v1/auth/google")
+    suspend fun getGoogleAuthUrl(): Response<ApiResponse<GoogleAuthUrlResponse>>
+
+    @POST("v1/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<ApiResponse<Unit>>
+
+    @POST("v1/reset-password")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): Response<ApiResponse<Unit>>
+
+    @POST("v1/email/verify")
+    suspend fun verifyEmail(@Body request: VerifyEmailRequest): Response<ApiResponse<Unit>>
+
     @POST("v1/logout")
     suspend fun logout(): Response<ApiResponse<Unit>>
+
+    @POST("v1/email/resend")
+    suspend fun resendEmailVerification(): Response<ApiResponse<Unit>>
 
     @GET("v1/me")
     suspend fun getMe(): Response<ApiResponse<UserData>>
 
     @PUT("v1/me")
     suspend fun updateMe(@Body request: UpdateProfileRequest): Response<ApiResponse<UserData>>
+
+    @PUT("v1/me/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<ApiResponse<Unit>>
+
+    @POST("v1/me/whatsapp/request-otp")
+    suspend fun requestWaOtp(): Response<ApiResponse<Unit>>
+
+    @POST("v1/me/whatsapp/verify-otp")
+    suspend fun verifyWaOtp(@Body request: VerifyWaOtpRequest): Response<ApiResponse<UserData>>
 
     // ── UPLOAD ─────────────────────────────────────────────────────
     @Multipart

@@ -41,15 +41,15 @@ fun RegisterScreen(
     var konfirmasiPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var konfirmasiVisible by remember { mutableStateOf(false) }
+    var showVerificationDialog by remember { mutableStateOf(false) }
 
     val authState by viewModel.authState.collectAsState()
     val isLoading = authState is AuthState.Loading
 
     LaunchedEffect(authState) {
         when (authState) {
-            is AuthState.Success -> {
-                viewModel.resetState()
-                onRegisterSuccess()
+            is AuthState.EmailVerificationSent -> {
+                showVerificationDialog = true
             }
             else -> Unit
         }
@@ -57,7 +57,7 @@ fun RegisterScreen(
 
     val passwordMatch = password == konfirmasiPassword
     val formValid = nama.isNotEmpty() && email.isNotEmpty() &&
-            noWa.isNotEmpty() && password.length >= 8 &&
+            password.length >= 8 &&
             konfirmasiPassword.isNotEmpty() && passwordMatch
 
     Column(
@@ -140,7 +140,7 @@ fun RegisterScreen(
             // No WhatsApp — prefix +62
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "NO. WHATSAPP",
+                    text = "NO. WHATSAPP (OPSIONAL)",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
@@ -241,7 +241,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(Spacing.xs))
 
             Button(
-                onClick  = { viewModel.register(nama, email, password, noWa) },
+                onClick  = { viewModel.register(nama, email, password, noWa.ifBlank { null }) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(ComponentSize.buttonHeight),
@@ -280,6 +280,30 @@ fun RegisterScreen(
                 )
             }
         }
+    }
+
+    if (showVerificationDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Email verifikasi dikirim", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = {
+                Text(
+                    "Cek inbox atau folder spam untuk verifikasi email kamu. Setelah link berhasil dibuka, kamu bisa login lagi.",
+                    fontFamily = DmSansFamily,
+                    color = Charcoal60
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showVerificationDialog = false
+                    viewModel.resetState()
+                    onRegisterSuccess()
+                }) {
+                    Text("Ke Halaman Login", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            containerColor = Cream
+        )
     }
 }
 

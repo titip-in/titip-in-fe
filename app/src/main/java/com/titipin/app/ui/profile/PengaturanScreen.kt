@@ -45,6 +45,9 @@ fun PengaturanScreen(
 
     var showEditProfileSheet by remember { mutableStateOf(false) }
     var showEditWaSheet      by remember { mutableStateOf(false) }
+    var showVerifyWaSheet    by remember { mutableStateOf(false) }
+    var showChangePasswordSheet by remember { mutableStateOf(false) }
+    var showResetPasswordSheet by remember { mutableStateOf(false) }
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri -> if (uri != null) viewModel.uploadAvatar(uri) }
@@ -56,10 +59,14 @@ fun PengaturanScreen(
     LaunchedEffect(actionState) {
         when (actionState) {
             is PengaturanActionState.Success -> {
+                val message = (actionState as PengaturanActionState.Success).message
                 viewModel.resetActionState()
                 showEditProfileSheet = false
                 showEditWaSheet = false
-                scope.launch { snackbarHostState.showSnackbar("Profil berhasil diperbarui ✔") }
+                showVerifyWaSheet = false
+                showChangePasswordSheet = false
+                showResetPasswordSheet = false
+                scope.launch { snackbarHostState.showSnackbar(message) }
             }
             is PengaturanActionState.Error -> {
                 scope.launch { snackbarHostState.showSnackbar((actionState as PengaturanActionState.Error).message) }
@@ -189,21 +196,51 @@ fun PengaturanScreen(
                             }
                         )
 
+                        PengaturanMenuItem(
+                            emoji   = if (user.emailVerifiedAt.isNullOrBlank()) "✉️" else "✅",
+                            label   = "Verifikasi Email",
+                            subtitle = if (user.emailVerifiedAt.isNullOrBlank())
+                                "Belum terverifikasi — kirim ulang email"
+                            else
+                                "Email sudah terverifikasi",
+                            badge = if (user.emailVerifiedAt.isNullOrBlank()) "Perlu" else null,
+                            onClick = {
+                                if (user.emailVerifiedAt.isNullOrBlank()) viewModel.resendEmailVerification()
+                            }
+                        )
+
                         // No. WhatsApp
                         PengaturanMenuItem(
                             emoji   = "📱",
                             label   = "No. WhatsApp",
-                            subtitle = user.waNumber.ifEmpty { "Belum diisi — ketuk untuk mengisi" },
+                            subtitle = when {
+                                user.waNumber.isNullOrBlank() -> "Belum diisi — ketuk untuk mengisi"
+                                user.waVerifiedAt.isNullOrBlank() -> "${user.waNumber} — belum verified"
+                                else -> "${user.waNumber} — verified"
+                            },
+                            badge = if (!user.waNumber.isNullOrBlank() && user.waVerifiedAt.isNullOrBlank()) "OTP" else null,
                             onClick = { showEditWaSheet = true }
                         )
+
+                        if (!user.waNumber.isNullOrBlank() && user.waVerifiedAt.isNullOrBlank()) {
+                            PengaturanMenuItem(
+                                emoji = "🔐",
+                                label = "Verifikasi WhatsApp",
+                                subtitle = "Kirim OTP dan verifikasi nomor WA",
+                                badge = "Perlu",
+                                onClick = {
+                                    showVerifyWaSheet = true
+                                    viewModel.requestWaOtp()
+                                }
+                            )
+                        }
 
                         // Ubah Password
                         PengaturanMenuItem(
                             emoji    = "🔒",
                             label    = "Ubah Password",
-                            subtitle = "Ganti password akun kamu",
-                            badge    = "Segera",
-                            onClick  = { /* TODO: nunggu BE */ }
+                            subtitle = "Ganti password atau kirim link reset",
+                            onClick  = { showChangePasswordSheet = true }
                         )
                     }
 
@@ -390,6 +427,47 @@ fun PengaturanScreen(
             isSaving  = actionState is PengaturanActionState.Loading,
             onDismiss = { showEditWaSheet = false },
             onSave    = { wa -> viewModel.updateProfile(waNumber = wa.trim()) }
+        )
+    }
+
+    if (showVerifyWaSheet) {
+        VerifyWaSheet(
+            isSaving = actionState is PengaturanActionState.Loading,
+            onDismiss = { showVerifyWaSheet = false },
+            onResend = { viewModel.requestWaOtp() },
+            onVerify = { otp -> viewModel.verifyWaOtp(otp.trim()) }
+        )
+    }
+
+    if (showChangePasswordSheet) {
+        val currentUser = (uiState as? PengaturanUiState.Ready)?.user
+        ChangePasswordSheet(
+            isSaving = actionState is PengaturanActionState.Loading,
+            onDismiss = { showChangePasswordSheet = false },
+            onResetByEmail = {
+                showChangePasswordSheet = false
+                showResetPasswordSheet = true
+            },
+            onSave = { oldPassword, newPassword ->
+                viewModel.changePassword(oldPassword, newPassword)
+            }
+        )
+
+        if (showResetPasswordSheet) {
+            ResetPasswordSheet(
+                currentEmail = currentUser?.email.orEmpty(),
+                isSaving = actionState is PengaturanActionState.Loading,
+                onDismiss = { showResetPasswordSheet = false },
+                onSend = { email -> viewModel.requestPasswordReset(email.trim()) }
+            )
+        }
+    } else if (showResetPasswordSheet) {
+        val currentUser = (uiState as? PengaturanUiState.Ready)?.user
+        ResetPasswordSheet(
+            currentEmail = currentUser?.email.orEmpty(),
+            isSaving = actionState is PengaturanActionState.Loading,
+            onDismiss = { showResetPasswordSheet = false },
+            onSend = { email -> viewModel.requestPasswordReset(email.trim()) }
         )
     }
 }
@@ -600,6 +678,172 @@ private fun EditWaSheet(
                     CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                 } else {
                     Text("Simpan", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VerifyWaSheet(
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onResend: () -> Unit,
+    onVerify: (otp: String) -> Unit
+) {
+    var otp by remember { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text("Verifikasi WhatsApp", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                fontWeight = FontWeight.Medium, color = Charcoal)
+            Text("Masukkan kode OTP 6 digit yang dikirim ke nomor WhatsApp kamu.",
+                fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal60, lineHeight = 18.sp)
+            OutlinedTextField(
+                value = otp,
+                onValueChange = { otp = it.filter { char -> char.isDigit() }.take(6) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("123456", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Button(
+                onClick = { onVerify(otp) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = otp.length == 6 && !isSaving,
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Verifikasi", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+                }
+            }
+            TextButton(onClick = onResend, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+                Text("Kirim ulang OTP", fontFamily = DmSansFamily, color = Terracotta)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChangePasswordSheet(
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onResetByEmail: () -> Unit,
+    onSave: (oldPassword: String, newPassword: String) -> Unit
+) {
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text("Ubah Password", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                fontWeight = FontWeight.Medium, color = Charcoal)
+            OutlinedTextField(
+                value = oldPassword,
+                onValueChange = { oldPassword = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Password lama", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            OutlinedTextField(
+                value = newPassword,
+                onValueChange = { newPassword = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Password baru min. 8 karakter", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Button(
+                onClick = { onSave(oldPassword, newPassword) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = oldPassword.isNotBlank() && newPassword.length >= 8 && !isSaving,
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Simpan Password", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+                }
+            }
+            TextButton(onClick = onResetByEmail, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+                Text("Set/Reset password via email", fontFamily = DmSansFamily, color = Terracotta)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ResetPasswordSheet(
+    currentEmail: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSend: (email: String) -> Unit
+) {
+    var email by remember { mutableStateOf(currentEmail) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Text("Reset Password", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                fontWeight = FontWeight.Medium, color = Charcoal)
+            Text("Link reset password akan dikirim lewat email dan dibuka di web.",
+                fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal60, lineHeight = 18.sp)
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("email@example.com", fontFamily = DmSansFamily) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Terracotta,
+                    unfocusedBorderColor = Charcoal30,
+                    cursorColor = Terracotta
+                ),
+                shape = RoundedCornerShape(Radius.md)
+            )
+            Button(
+                onClick = { onSend(email) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = email.isNotBlank() && !isSaving,
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(color = Cream, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Kirim Link Reset", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
                 }
             }
         }

@@ -2,6 +2,7 @@ package com.titipin.app.ui.onboarding
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -17,9 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +31,7 @@ import com.titipin.app.ui.auth.TitipinTextField
 import com.titipin.app.ui.profile.ProfileUiState
 import com.titipin.app.ui.profile.ProfileViewModel
 import com.titipin.app.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun SetupProfileScreen(
@@ -38,9 +41,32 @@ fun SetupProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isUploadingAvatar by viewModel.isUploadingAvatar.collectAsState()
     val isUpdatingProfile by viewModel.isUpdatingProfile.collectAsState()
+    val user = (uiState as? ProfileUiState.Success)?.user
 
-    var status by remember { mutableStateOf("") }
+    var name by remember(user?.id) { mutableStateOf(user?.name.orEmpty()) }
+    var waNumber by remember(user?.id) { mutableStateOf(user?.waNumber.orEmpty()) }
+    var status by remember(user?.id) { mutableStateOf(user?.status.orEmpty()) }
     var localAvatarUri by remember { mutableStateOf<Uri?>(null) }
+    var showOtpDialog by remember { mutableStateOf(false) }
+    var otp by remember { mutableStateOf("") }
+    var otpCooldown by remember { mutableIntStateOf(0) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var shouldFinishAfterSave by remember { mutableStateOf(false) }
+
+    LaunchedEffect(otpCooldown) {
+        if (otpCooldown > 0) {
+            delay(1000)
+            otpCooldown -= 1
+        }
+    }
+
+    LaunchedEffect(uiState, shouldFinishAfterSave) {
+        val current = (uiState as? ProfileUiState.Success)?.user
+        if (shouldFinishAfterSave && current != null && !isUpdatingProfile) {
+            shouldFinishAfterSave = false
+            onFinish()
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -52,8 +78,9 @@ fun SetupProfileScreen(
         }
     )
 
-    // Optional: we can extract user info from state if loaded
-    val user = (uiState as? ProfileUiState.Success)?.user
+    val emailVerified = !user?.emailVerifiedAt.isNullOrBlank()
+    val waVerified = !user?.waVerifiedAt.isNullOrBlank()
+    val canSave = emailVerified && waVerified && name.isNotBlank() && !isUploadingAvatar && !isUpdatingProfile
 
     Column(
         modifier = Modifier
@@ -65,39 +92,32 @@ fun SetupProfileScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(Spacing.xl))
-
         Text(
-            text = "Hai, ${user?.name?.split(" ")?.firstOrNull() ?: "Titipers"}! 👋",
-            fontSize = 24.sp,
+            text = "Lengkapi Profil",
+            fontSize = 26.sp,
             fontWeight = FontWeight.SemiBold,
             color = Charcoal,
-            fontFamily = DmSansFamily,
+            fontFamily = FrauncesFamily,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
-            text = "Ayo lengkapi profilmu biar Titipers lain\nmudah mengenali kamu.",
-            fontSize = 14.sp,
+            text = "Profil wajib dilengkapi sebelum masuk dashboard.",
+            fontSize = 13.sp,
             color = Charcoal60,
             fontFamily = DmSansFamily,
-            textAlign = TextAlign.Center,
-            lineHeight = 20.sp
+            textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(Spacing.xl))
 
-        // Avatar Picker
         Box(
             modifier = Modifier
-                .size(120.dp)
+                .size(112.dp)
                 .clip(CircleShape)
                 .background(CreamDark)
                 .clickable {
-                    photoPickerLauncher.launch(
-                        androidx.activity.result.PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly
-                        )
-                    )
+                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -105,88 +125,122 @@ fun SetupProfileScreen(
             if (displayUrl != null) {
                 AsyncImage(
                     model = displayUrl,
-                    contentDescription = "Profile Photo",
+                    contentDescription = "Foto profil",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Text(
-                    text = user?.name?.firstOrNull()?.uppercase() ?: "?",
-                    fontSize = 48.sp,
+                    text = name.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = 42.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Terracotta
                 )
             }
 
-            if (isUploadingAvatar) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Charcoal.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Cream, modifier = Modifier.size(24.dp))
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Charcoal.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CameraAlt,
-                        contentDescription = "Ganti Foto",
-                        tint = Cream.copy(alpha = 0.8f),
-                        modifier = Modifier.size(32.dp)
-                    )
+            Box(
+                modifier = Modifier.fillMaxSize().background(Charcoal.copy(alpha = if (isUploadingAvatar) 0.5f else 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isUploadingAvatar) {
+                    CircularProgressIndicator(color = Cream, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Rounded.CameraAlt, contentDescription = "Ganti Foto", tint = Cream, modifier = Modifier.size(30.dp))
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(Spacing.md))
-        Text(
-            text = "Ganti Foto Profil",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = Terracotta,
-            fontFamily = DmSansFamily,
-            modifier = Modifier.clickable {
-                photoPickerLauncher.launch(
-                    androidx.activity.result.PickVisualMediaRequest(
-                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                    )
-                )
-            }
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        TitipinTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "NAMA",
+            placeholder = "Nama lengkap",
+            isFocused = name.isNotBlank()
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        ReadOnlyField(
+            label = "EMAIL",
+            value = user?.email.orEmpty(),
+            badge = if (emailVerified) "Verified" else "Belum verified",
+            badgeColor = if (emailVerified) Sage else Terracotta
+        )
 
-        // Status Input
+        if (!emailVerified) {
+            OutlinedButton(
+                onClick = {
+                    viewModel.resendEmailVerification { success, text ->
+                        message = text
+                        if (success) viewModel.loadProfile()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdatingProfile,
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Kirim ulang email verifikasi", fontFamily = DmSansFamily)
+            }
+        }
+
+        TitipinTextField(
+            value = waNumber,
+            onValueChange = { waNumber = it },
+            label = "NO. WHATSAPP",
+            placeholder = "08xxxxxxxxxx",
+            keyboardType = KeyboardType.Phone,
+            isFocused = waNumber.isNotBlank()
+        )
+
+        Button(
+            onClick = {
+                viewModel.requestWaOtpForNumber(waNumber.trim()) { success, text ->
+                    message = text
+                    if (success) {
+                        otp = ""
+                        otpCooldown = 60
+                        showOtpDialog = true
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = waNumber.length >= 10 && !waVerified && otpCooldown == 0 && !isUpdatingProfile,
+            shape = RoundedCornerShape(Radius.full),
+            colors = ButtonDefaults.buttonColors(containerColor = if (waVerified) Sage else Charcoal)
+        ) {
+            val label = when {
+                waVerified -> "WhatsApp Terverifikasi"
+                otpCooldown > 0 -> "Kirim OTP lagi dalam ${otpCooldown}s"
+                else -> "Verifikasi WhatsApp"
+            }
+            Text(label, fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, color = Cream)
+        }
+
         TitipinTextField(
             value = status,
             onValueChange = { status = it },
-            label = "STATUS BIO (Opsional)",
+            label = "BIO (OPSIONAL)",
             placeholder = "Cth: Suka titip skincare Korea",
-            isFocused = status.isNotEmpty()
+            isFocused = status.isNotBlank()
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        message?.let {
+            Text(it, fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily, modifier = Modifier.fillMaxWidth())
+        }
+
         Spacer(modifier = Modifier.height(Spacing.xl))
 
-        val isProcessing = isUploadingAvatar || isUpdatingProfile
         Button(
             onClick = {
-                if (status.isNotBlank()) {
-                    viewModel.updateProfile(status = status)
-                } else {
-                    onFinish() // if just uploading photo and skipping status, or just clicking continue
-                }
+                shouldFinishAfterSave = true
+                viewModel.updateProfile(
+                    name = name.trim(),
+                    waNumber = waNumber.trim(),
+                    status = status.trim().ifEmpty { null }
+                )
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(ComponentSize.buttonHeight),
-            enabled = !isProcessing,
+            modifier = Modifier.fillMaxWidth().height(ComponentSize.buttonHeight),
+            enabled = canSave,
             shape = RoundedCornerShape(Radius.full),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Charcoal,
@@ -195,41 +249,100 @@ fun SetupProfileScreen(
                 disabledContentColor = Charcoal30
             )
         ) {
-            if (isProcessing) {
+            if (isUpdatingProfile) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Cream, strokeWidth = 2.dp)
             } else {
-                Text(text = "Lanjutkan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily)
+                Text("Simpan dan Masuk", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily)
             }
         }
 
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        TextButton(
-            onClick = { onFinish() },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isProcessing
-        ) {
-            Text(
-                text = "Lewati",
-                color = Charcoal60,
-                fontSize = 14.sp,
-                fontFamily = DmSansFamily
-            )
-        }
-        
         Spacer(modifier = Modifier.height(Spacing.lg))
     }
 
-    // Effect for handling the status update completion
-    LaunchedEffect(uiState) {
-        if (!isUploadingAvatar && !isUpdatingProfile && status.isNotBlank()) {
-            // we should wait for success
-            if (uiState is ProfileUiState.Success) {
-                val returnedStatus = (uiState as ProfileUiState.Success).user.status
-                if (returnedStatus == status) {
-                     onFinish()
+    if (showOtpDialog) {
+        AlertDialog(
+            onDismissRequest = { showOtpDialog = false },
+            title = { Text("Masukkan OTP", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text("Kode OTP dikirim ke WhatsApp kamu.", fontFamily = DmSansFamily, color = Charcoal60)
+                    OutlinedTextField(
+                        value = otp,
+                        onValueChange = { otp = it.filter { char -> char.isDigit() }.take(6) },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("123456", fontFamily = DmSansFamily) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                        shape = RoundedCornerShape(Radius.md)
+                    )
                 }
-            }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.verifyWaOtp(otp) { success, text ->
+                            message = text
+                            if (success) {
+                                showOtpDialog = false
+                                viewModel.loadProfile()
+                            }
+                        }
+                    },
+                    enabled = otp.length == 6
+                ) {
+                    Text("Verifikasi", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.requestWaOtpForNumber(waNumber.trim()) { success, text ->
+                            message = text
+                            if (success) otpCooldown = 60
+                        }
+                    },
+                    enabled = otpCooldown == 0
+                ) {
+                    Text(
+                        if (otpCooldown > 0) "Kirim ulang (${otpCooldown}s)" else "Kirim ulang",
+                        color = if (otpCooldown > 0) Charcoal30 else Charcoal,
+                        fontFamily = DmSansFamily
+                    )
+                }
+            },
+            containerColor = Cream
+        )
+    }
+}
+
+@Composable
+private fun ReadOnlyField(
+    label: String,
+    value: String,
+    badge: String,
+    badgeColor: androidx.compose.ui.graphics.Color
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp,
+            color = Charcoal60,
+            fontFamily = DmSansFamily,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Radius.md))
+                .background(CreamDark)
+                .padding(horizontal = Spacing.md, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(value.ifBlank { "-" }, fontSize = 13.sp, color = Charcoal, fontFamily = DmSansFamily)
+            Text(badge, fontSize = 11.sp, color = badgeColor, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFamily)
         }
     }
 }

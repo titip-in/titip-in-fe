@@ -15,7 +15,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data ?: emptyList())
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal memuat data")
+                response.toResultError("Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -28,7 +28,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Jastip tidak ditemukan")
+                response.toResultError("Jastip tidak ditemukan")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -41,7 +41,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()?.data?.data.orEmpty())
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mencari jastip")
+                response.toResultError("Gagal mencari jastip")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -54,7 +54,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal membuat jastip")
+                response.toResultError("Gagal membuat jastip")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -67,8 +67,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                // 400 limit error pakai field 'message', bukan 'error.message'
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal update status")
+                response.toResultError("Gagal update status")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -81,7 +80,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mengubah jastip")
+                response.toResultError("Gagal mengubah jastip")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -94,7 +93,7 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(Unit)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal menghapus jastip")
+                response.toResultError("Gagal menghapus jastip")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -106,7 +105,7 @@ suspend fun getMyJastipList(userId: String? = null): Result<List<JastipDto>> {
         if (response.isSuccessful && response.body()?.success == true) {
             Result.Success(response.body()?.data?.data.orEmpty())
         } else {
-            Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal memuat data")
+            response.toResultError("Gagal memuat data")
         }
     } catch (e: Exception) {
         Result.Error("Tidak bisa terhubung ke server")

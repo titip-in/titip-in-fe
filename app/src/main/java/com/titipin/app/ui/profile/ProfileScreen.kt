@@ -196,7 +196,8 @@ fun ProfileScreen(
                                                 fontFamily = DmSansFamily, letterSpacing = 0.5.sp
                                             )
                                         }
-                                        if (user.waNumber.isNotBlank()) {
+                                        val waNumber = user.waNumber.orEmpty()
+                                        if (waNumber.isNotBlank()) {
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(Radius.full))
@@ -204,7 +205,7 @@ fun ProfileScreen(
                                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                                             ) {
                                                 Text(
-                                                    "📱 ${maskWaNumber(user.waNumber)}",
+                                                    "📱 ${maskWaNumber(waNumber)}",
                                                     fontSize = 9.sp, fontWeight = FontWeight.Bold,
                                                     color = Gold, fontFamily = DmSansFamily
                                                 )

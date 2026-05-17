@@ -125,6 +125,11 @@ fun TitipinNavGraph() {
                         navController.navigate(Routes.ONBOARDING) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
                         }
+                    },
+                    onNavigateToSetupProfile = {
+                        navController.navigate(Routes.SETUP_PROFILE) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -146,6 +151,11 @@ fun TitipinNavGraph() {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
                         }
+                    },
+                    onSetupRequired = {
+                        navController.navigate(Routes.SETUP_PROFILE) {
+                            popUpTo(Routes.LOGIN) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -153,8 +163,8 @@ fun TitipinNavGraph() {
                 RegisterScreen(
                     onNavigateToLogin = { navController.popBackStack() },
                     onRegisterSuccess = {
-                        navController.navigate(Routes.SETUP_PROFILE) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.REGISTER) { inclusive = true }
                         }
                     }
                 )

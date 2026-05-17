@@ -12,7 +12,7 @@ data class RegisterRequest(
     val email: String,
     val password: String,
     @SerializedName("wa_number")
-    val waNumber: String
+    val waNumber: String? = null
 )
 
 data class UpdateProfileRequest(
@@ -22,6 +22,30 @@ data class UpdateProfileRequest(
     val status: String? = null,
     @SerializedName("avatar_url")
     val avatarUrl: String? = null
+)
+
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+data class ResetPasswordRequest(
+    val token: String,
+    val password: String
+)
+
+data class VerifyEmailRequest(
+    val token: String
+)
+
+data class ChangePasswordRequest(
+    @SerializedName("old_password")
+    val oldPassword: String,
+    @SerializedName("new_password")
+    val newPassword: String
+)
+
+data class VerifyWaOtpRequest(
+    val otp: String
 )
 
 // semua response BE: { "success": bool, "message": "...", "data": {...}, "errors": {...} }
@@ -46,6 +70,10 @@ data class AuthResponse(
     val user: UserData
 )
 
+data class GoogleAuthUrlResponse(
+    val url: String
+)
+
 data class UserData(
     val id: Int,
     val name: String,
@@ -53,7 +81,9 @@ data class UserData(
     @SerializedName("email_verified_at")
     val emailVerifiedAt: String? = null,
     @SerializedName("wa_number")
-    val waNumber: String,
+    val waNumber: String? = null,
+    @SerializedName("wa_verified_at")
+    val waVerifiedAt: String? = null,
     @SerializedName("avatar_url")
     val avatarUrl: String? = null,
     val status: String? = null,

@@ -4,14 +4,25 @@ import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
 import com.titipin.app.data.remote.ApiService
 import kotlinx.coroutines.flow.firstOrNull
-import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
-    data class Error(val message: String) : Result<Nothing>()
+    data class Error(
+        val message: String,
+        val code: String? = null,
+        val httpCode: Int? = null,
+        val errors: String? = null
+    ) : Result<Nothing>()
 }
+
+data class ApiFailure(
+    val message: String,
+    val code: String? = null,
+    val httpCode: Int? = null,
+    val errors: String? = null
+)
 
 @Singleton
 class AuthRepository @Inject constructor(
@@ -30,9 +41,7 @@ class AuthRepository @Inject constructor(
                 )
                 Result.Success(authData)
             } else {
-                val errorMsg = response.errorMessage()
-                    ?: "Login gagal, coba lagi"
-                Result.Error(errorMsg)
+                response.toResultError("Login gagal, coba lagi")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server. Cek koneksi internetmu.")
@@ -43,26 +52,71 @@ class AuthRepository @Inject constructor(
         name: String,
         email: String,
         password: String,
-        waNumber: String
+        waNumber: String?
     ): Result<AuthResponse> {
         return try {
-            val formattedWa = formatWaNumber(waNumber)
+            val formattedWa = waNumber?.takeIf { it.isNotBlank() }?.let(::formatWaNumber)
             val response = apiService.register(RegisterRequest(name, email, password, formattedWa))
             if (response.isSuccessful && response.body()?.success == true) {
                 val authData = response.body()!!.data!!
-                dataStore.saveAuthData(
-                    accessToken  = authData.accessToken,
-                    tokenType    = authData.tokenType,
-                    user         = authData.user
-                )
                 Result.Success(authData)
             } else {
-                val errorMsg = response.errorMessage()
-                    ?: "Registrasi gagal, coba lagi"
-                Result.Error(errorMsg)
+                response.toResultError("Registrasi gagal, coba lagi")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server. Cek koneksi internetmu.")
+        }
+    }
+
+    suspend fun getGoogleAuthUrl(): Result<String> {
+        return try {
+            val response = apiService.getGoogleAuthUrl()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()?.data?.url.orEmpty())
+            } else {
+                response.toResultError("Gagal menyiapkan login Google")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun forgotPassword(email: String): Result<Unit> {
+        return try {
+            val response = apiService.forgotPassword(ForgotPasswordRequest(email))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengirim link reset password")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun resetPassword(token: String, password: String): Result<Unit> {
+        return try {
+            val response = apiService.resetPassword(ResetPasswordRequest(token, password))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengatur password baru")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun verifyEmail(token: String): Result<Unit> {
+        return try {
+            val response = apiService.verifyEmail(VerifyEmailRequest(token))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal verifikasi email")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
         }
     }
 
@@ -86,7 +140,7 @@ class AuthRepository @Inject constructor(
                 Result.Success(user)
             } else {
                 if (response.code() == 401) dataStore.clearAuthData()
-                Result.Error(response.errorMessage() ?: "Gagal memuat profil")
+                response.toResultError("Gagal memuat profil")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server.")
@@ -113,7 +167,61 @@ class AuthRepository @Inject constructor(
                 Result.Success(user)
             } else {
                 if (response.code() == 401) dataStore.clearAuthData()
-                Result.Error(response.errorMessage() ?: "Gagal memperbarui profil")
+                response.toResultError("Gagal memperbarui profil")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun resendEmailVerification(): Result<Unit> {
+        return try {
+            val response = apiService.resendEmailVerification()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengirim ulang email verifikasi")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun changePassword(oldPassword: String, newPassword: String): Result<Unit> {
+        return try {
+            val response = apiService.changePassword(ChangePasswordRequest(oldPassword, newPassword))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengubah password")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun requestWaOtp(): Result<Unit> {
+        return try {
+            val response = apiService.requestWaOtp()
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengirim OTP WhatsApp")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    suspend fun verifyWaOtp(otp: String): Result<UserData?> {
+        return try {
+            val response = apiService.verifyWaOtp(VerifyWaOtpRequest(otp))
+            if (response.isSuccessful && response.body()?.success == true) {
+                val user = response.body()?.data
+                if (user != null) dataStore.saveAuthDataFromUser(user)
+                Result.Success(user)
+            } else {
+                response.toResultError("Gagal verifikasi OTP WhatsApp")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server.")
@@ -142,16 +250,13 @@ class AuthRepository @Inject constructor(
         )
     }
 
-    private fun <T> retrofit2.Response<ApiResponse<T>>.errorMessage(): String? {
-        body()?.error?.message?.let { return it }
-        body()?.message?.let { return it }
-
-        val raw = errorBody()?.string().orEmpty()
-        if (raw.isBlank()) return null
-
-        return runCatching {
-            val json = JSONObject(raw)
-            json.optString("message").takeIf { it.isNotBlank() }
-        }.getOrNull()
+    private fun <T> retrofit2.Response<ApiResponse<T>>.toResultError(defaultMessage: String): Result.Error {
+        val failure = apiFailure(defaultMessage)
+        return Result.Error(
+            message = failure.message,
+            code = failure.code,
+            httpCode = failure.httpCode,
+            errors = failure.errors
+        )
     }
 }
