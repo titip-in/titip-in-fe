@@ -13,3 +13,13 @@
 .externalNativeBuild
 .cxx
 local.properties
+/.agent/project-overview
+.agent/
+CLAUDE.md
+AGENTS.md
+.agents/
+*.keystore
+*.jks
+key.properties
+titipin-release.keystore.base64
+.env.ci-cd
