@@ -31,6 +31,7 @@ import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageWanted
 import com.titipin.app.ui.components.CategoryChipRow
+import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -49,12 +50,14 @@ fun PrelovedScreen(
     val isPrelovedRefreshing   by viewModel.isRefreshing.collectAsState()
     val categoryState          by viewModel.categoryState.collectAsState()
     val selectedCategoryId     by viewModel.selectedCategoryId.collectAsState()
+    val currentUserId          by viewModel.currentUserId.collectAsState()
 
     val requestListState       by prelovedRequestViewModel.listState.collectAsState()
     val requestActionState     by prelovedRequestViewModel.actionState.collectAsState()
     val isRequestRefreshing    by prelovedRequestViewModel.isRefreshing.collectAsState()
     val requestCategoryState   by prelovedRequestViewModel.categoryState.collectAsState()
     val requestSelectedCatId   by prelovedRequestViewModel.selectedCategoryId.collectAsState()
+    val requestCurrentUserId   by prelovedRequestViewModel.currentUserId.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -68,6 +71,7 @@ fun PrelovedScreen(
 
     val scope   = rememberCoroutineScope()
     val context = LocalContext.current
+    var limitDialogMessage by remember { mutableStateOf<String?>(null) }
 
     // Tutup sheet preloved setelah sukses post
     LaunchedEffect(actionState) {
@@ -148,6 +152,7 @@ fun PrelovedScreen(
                         categoryState      = categoryState,
                         selectedCategoryId = selectedCategoryId,
                         onCategorySelected = viewModel::selectCategory,
+                        currentUserId       = currentUserId,
                         onCardClick        = onNavigateToDetail,
                         onRetry            = { viewModel.loadPrelovedList() }
                     )
@@ -162,6 +167,7 @@ fun PrelovedScreen(
                         categoryState      = requestCategoryState,
                         selectedCategoryId = requestSelectedCatId,
                         onCategorySelected = prelovedRequestViewModel::selectCategory,
+                        currentUserId       = requestCurrentUserId,
                         onRetry            = { prelovedRequestViewModel.loadPrelovedRequestList() },
                         onCardClick        = onNavigateToRequestDetail,
                         onContactWhatsApp  = { waNumber, title ->
@@ -182,12 +188,36 @@ fun PrelovedScreen(
                 .clip(CircleShape)
                 .background(Terracotta)
                 .clickable {
-                    if (selectedTab == 0) showPrelovedSheet = true
-                    else showRequestSheet = true
+                    if (selectedTab == 0) {
+                        val activeMine = (listState as? PrelovedListState.Success)
+                            ?.data
+                            ?.count { it.userId?.toString() == currentUserId && it.status == "AVAILABLE" } ?: 0
+                        if (activeMine >= 5) {
+                            limitDialogMessage = "Kamu sudah punya 5 barang preloved aktif. Tutup salah satu barang dulu sebelum membuat listing baru."
+                        } else {
+                            showPrelovedSheet = true
+                        }
+                    } else {
+                        val activeMine = (requestListState as? PrelovedRequestListState.Success)
+                            ?.data
+                            ?.count { it.userId?.toString() == requestCurrentUserId && it.status == "OPEN" } ?: 0
+                        if (activeMine >= 5) {
+                            limitDialogMessage = "Kamu sudah punya 5 pencarian aktif. Tutup salah satu pencarian dulu sebelum membuat request baru."
+                        } else {
+                            showRequestSheet = true
+                        }
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
             Text("＋", color = Cream, fontSize = 22.sp, fontWeight = FontWeight.Light)
+        }
+
+        if (limitDialogMessage != null) {
+            LimitReachedDialog(
+                message = limitDialogMessage.orEmpty(),
+                onDismiss = { limitDialogMessage = null }
+            )
         }
     }
 
@@ -237,6 +267,7 @@ fun PrelovedDijualContent(
     categoryState: PrelovedCategoryState,
     selectedCategoryId: Int?,
     onCategorySelected: (Int?) -> Unit,
+    currentUserId: String?,
     onCardClick: (String) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -303,6 +334,7 @@ fun PrelovedDijualContent(
                                 item    = item,
                                 isWide  = index == 0,
                                 bgColor = cardBgColors[index % cardBgColors.size],
+                                currentUserId = currentUserId,
                                 onClick = { onCardClick(item.id) }
                             )
                         }
@@ -319,11 +351,13 @@ fun PrelovedBentoCard(
     item: PrelovedDto,
     isWide: Boolean,
     bgColor: androidx.compose.ui.graphics.Color,
+    currentUserId: String?,
     onClick: () -> Unit
 ) {
     val categoryLabel = item.category?.name ?: "Lainnya"
     val categoryEmoji = item.category?.icon ?: categoryEmojiFor(categoryLabel)
     val primaryImageUrl = item.primaryImageUrl()
+    val isMine = currentUserId == item.userId?.toString()
 
     val condShort = when (item.condition) {
         "NEW"      -> "BARU"
@@ -356,6 +390,13 @@ fun PrelovedBentoCard(
                         contentDescription = item.title,
                         modifier           = Modifier.fillMaxSize(),
                         contentScale       = ContentScale.Crop
+                    )
+                }
+                if (isMine) {
+                    OwnerMiniBadge(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
                     )
                 }
             }
@@ -414,6 +455,7 @@ fun PrelovedDicariContent(
     categoryState: PrelovedRequestCategoryState,
     selectedCategoryId: Int?,
     onCategorySelected: (Int?) -> Unit,
+    currentUserId: String?,
     onRetry: () -> Unit,
     onCardClick: (String) -> Unit = {},
     onContactWhatsApp: (String, String) -> Unit
@@ -508,6 +550,7 @@ fun PrelovedDicariContent(
                     ) { index ->
                         PrelovedRequestCard(
                             item    = filteredData[index],
+                            currentUserId = currentUserId,
                             onClick = { onCardClick(filteredData[index].id) },
                             onContactWhatsApp = { onContactWhatsApp(filteredData[index].user.waNumber, filteredData[index].title) }
                         )
@@ -523,6 +566,7 @@ fun PrelovedDicariContent(
 @Composable
 fun PrelovedRequestCard(
     item: PrelovedRequestDto,
+    currentUserId: String?,
     onClick: () -> Unit = {},
     onContactWhatsApp: () -> Unit
 ) {
@@ -531,6 +575,7 @@ fun PrelovedRequestCard(
         .joinToString("") { it.first().uppercase() }
     val formattedBudget = item.formattedMaxPrice()
     val categoryLabel   = item.category?.name
+    val isMine = currentUserId == item.userId?.toString()
 
     Card(
         modifier  = Modifier.fillMaxWidth().clickable { onClick() },
@@ -562,13 +607,19 @@ fun PrelovedRequestCard(
                     Text(item.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
                     Text("Mencari", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(TerracottaPale)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("CARI", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Terracotta, fontFamily = DmSansFamily)
+                Column(horizontalAlignment = Alignment.End) {
+                    if (isMine) {
+                        OwnerMiniBadge()
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.full))
+                            .background(TerracottaPale)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("CARI", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Terracotta, fontFamily = DmSansFamily)
+                    }
                 }
             }
 
@@ -651,6 +702,24 @@ private fun PrelovedInfoChip(text: String) {
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Text(text, fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+    }
+}
+
+@Composable
+private fun OwnerMiniBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.full))
+            .background(TerracottaPale)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            "Milik Saya",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Terracotta,
+            fontFamily = DmSansFamily
+        )
     }
 }
 

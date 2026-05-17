@@ -30,6 +30,7 @@ import com.titipin.app.ui.jastip.JastipOfferScreen
 import com.titipin.app.ui.jastip.JastipRequestDetailScreen
 import com.titipin.app.ui.jastip.JastipScreen
 import com.titipin.app.ui.onboarding.OnboardingScreen
+import com.titipin.app.ui.onboarding.SetupProfileScreen
 import com.titipin.app.ui.preloved.PrelovedDetailScreen
 import com.titipin.app.ui.preloved.PrelovedRequestDetailScreen
 import com.titipin.app.ui.preloved.PrelovedScreen
@@ -62,6 +63,7 @@ val bottomNavItems = listOf(
 val routesWithoutBottomNav = listOf(
     Routes.SPLASH,
     Routes.ONBOARDING,
+    Routes.SETUP_PROFILE,
     Routes.LOGIN,
     Routes.REGISTER,
     Routes.JASTIP_DETAIL_PATTERN,
@@ -84,6 +86,16 @@ fun TitipinNavGraph() {
     val showBottomNav = navBackStackEntry?.destination?.hierarchy?.none { dest ->
         dest.route in routesWithoutBottomNav
     } ?: false
+    var bottomNavVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentRoute, showBottomNav) {
+        if (showBottomNav) {
+            kotlinx.coroutines.delay(320)
+            bottomNavVisible = true
+        } else {
+            bottomNavVisible = false
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -141,8 +153,18 @@ fun TitipinNavGraph() {
                 RegisterScreen(
                     onNavigateToLogin = { navController.popBackStack() },
                     onRegisterSuccess = {
-                        navController.navigate(Routes.HOME) {
+                        navController.navigate(Routes.SETUP_PROFILE) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.SETUP_PROFILE) {
+                SetupProfileScreen(
+                    onFinish = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.SETUP_PROFILE) { inclusive = true }
                         }
                     }
                 )
@@ -152,6 +174,8 @@ fun TitipinNavGraph() {
                 HomeScreen(
                     onNavigateToJastip      = { navController.navigate(Routes.JASTIP) },
                     onNavigateToPreloved    = { navController.navigate(Routes.PRELOVED) },
+                    onNavigateToJastipDetail = { id -> navController.navigate(Routes.jastipDetail(id)) },
+                    onNavigateToPrelovedDetail = { id -> navController.navigate(Routes.prelovedDetail(id)) },
                     onNavigateToPengaturan  = { navController.navigate(Routes.PENGATURAN) }
                 )
             }
@@ -281,7 +305,7 @@ fun TitipinNavGraph() {
             }
         }
 
-        if (showBottomNav) {
+        if (bottomNavVisible) {
             TitipinBottomNav(
                 currentRoute = currentRoute,
                 onNavigate = { route ->

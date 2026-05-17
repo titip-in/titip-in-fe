@@ -1,10 +1,14 @@
 package com.titipin.app.shared
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.titipin.app.ui.theme.Cream
+import com.titipin.app.ui.theme.Terracotta
 
 /**
  * Wrapper composable pull-to-refresh yang dipakai di semua list screen.
@@ -25,6 +29,15 @@ fun TitipinPullRefresh(
         onRefresh    = onRefresh,
         state        = state,
         modifier     = modifier,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state,
+                isRefreshing = isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+                color = Terracotta,
+                containerColor = Cream
+            )
+        },
         content      = { content() }
     )
 }

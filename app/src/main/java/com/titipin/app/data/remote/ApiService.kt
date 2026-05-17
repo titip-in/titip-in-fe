@@ -36,6 +36,19 @@ interface ApiService {
         @Query("type") type: String? = null
     ): Response<ApiResponse<List<CategoryDto>>>
 
+    // ── SEARCH ─────────────────────────────────────────────────────
+    @GET("v1/search")
+    suspend fun searchJastip(
+        @Query("q") query: String,
+        @Query("type") type: String = "jastip"
+    ): Response<ApiResponse<PaginatedResponse<JastipDto>>>
+
+    @GET("v1/search")
+    suspend fun searchPreloved(
+        @Query("q") query: String,
+        @Query("type") type: String = "preloved"
+    ): Response<ApiResponse<PaginatedResponse<PrelovedDto>>>
+
     // ── JASTIP ────────────────────────────────────────────────────
     @GET("v1/jastip/listings")
     suspend fun getJastipList(): Response<ApiResponse<List<JastipDto>>>

@@ -1,11 +1,13 @@
 package com.titipin.app.ui.profile
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.UserData
 import com.titipin.app.data.repository.AuthRepository
 import com.titipin.app.data.repository.Result
+import com.titipin.app.data.repository.UploadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,7 @@ sealed class PengaturanActionState {
 @HiltViewModel
 class PengaturanViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val uploadRepository: UploadRepository,
     private val dataStore: DataStoreManager
 ) : ViewModel() {
 
@@ -77,6 +80,24 @@ class PengaturanViewModel @Inject constructor(
                 is Result.Error -> {
                     _actionState.value = PengaturanActionState.Error(result.message)
                 }
+            }
+        }
+    }
+
+    fun uploadAvatar(uri: Uri) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            when (val uploadResult = uploadRepository.uploadImage(uri)) {
+                is Result.Success -> {
+                    when (val result = authRepository.updateProfile(avatarUrl = uploadResult.data)) {
+                        is Result.Success -> {
+                            _uiState.value = PengaturanUiState.Ready(result.data)
+                            _actionState.value = PengaturanActionState.Success
+                        }
+                        is Result.Error -> _actionState.value = PengaturanActionState.Error(result.message)
+                    }
+                }
+                is Result.Error -> _actionState.value = PengaturanActionState.Error(uploadResult.message)
             }
         }
     }

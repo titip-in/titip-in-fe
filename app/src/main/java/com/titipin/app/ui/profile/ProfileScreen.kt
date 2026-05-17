@@ -16,7 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.layout.ContentScale
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -29,6 +33,17 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isUploadingAvatar by viewModel.isUploadingAvatar.collectAsState()
+    var showReviewDialog by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            if (uri != null) {
+                viewModel.uploadAvatar(uri)
+            }
+        }
+    )
 
     Column(
         modifier = Modifier
@@ -43,6 +58,7 @@ fun ProfileScreen(
             }
             is ProfileUiState.Success -> {
                 val user = state.user
+                val usage = state.usage
                 val initials = user.name.trim()
                     .split(" ").filter { it.isNotBlank() }
                     .take(2).joinToString("") { it.first().uppercase() }
@@ -107,15 +123,43 @@ fun ProfileScreen(
                                                 listOf(Sage, Terracotta)
                                             )
                                         )
-                                        .padding(2.dp),
+                                        .clickable {
+                                            photoPickerLauncher.launch(
+                                                androidx.activity.result.PickVisualMediaRequest(
+                                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                )
+                                            )
+                                        }
+                                        .padding(if (user.avatarUrl.isNullOrEmpty()) 2.dp else 0.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        initials,
-                                        fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                                        color = androidx.compose.ui.graphics.Color.White,
-                                        fontFamily = DmSansFamily
-                                    )
+                                    if (!user.avatarUrl.isNullOrEmpty()) {
+                                        AsyncImage(
+                                            model = user.avatarUrl,
+                                            contentDescription = "Profile Photo",
+                                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Text(
+                                            initials,
+                                            fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                                            color = androidx.compose.ui.graphics.Color.White,
+                                            fontFamily = DmSansFamily
+                                        )
+                                    }
+
+                                    if (isUploadingAvatar) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                                .background(Charcoal.copy(alpha = 0.5f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(color = Cream, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        }
+                                    }
                                 }
 
                                 Column {
@@ -178,8 +222,8 @@ fun ProfileScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 listOf(
-                                    "—" to "Jastip",
-                                    "—" to "Preloved",
+                                    usage.totalJastip.toString() to "Jastip",
+                                    usage.totalPreloved.toString() to "Preloved",
                                     "—" to "Review"
                                 ).forEach { (count, label) ->
                                     Box(
@@ -216,6 +260,27 @@ fun ProfileScreen(
                             .padding(Spacing.lg),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        // ── ACTIVITY LIMIT PANEL ──
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radius.md))
+                                .background(Charcoal)
+                                .padding(Spacing.md)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("⚡", fontSize = 14.sp)
+                                    Text("LIMIT AKTIVITAS", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Cream, fontFamily = DmSansFamily)
+                                }
+                                UsageLimitRow("📦 Jastip Listing", usage.activeJastipListings, usage.limit, Sage)
+                                UsageLimitRow("📍 Jastip Request", usage.activeJastipRequests, usage.limit, Gold)
+                                UsageLimitRow("🛍️ Preloved Listing", usage.activePrelovedListings, usage.limit, Terracotta)
+                                UsageLimitRow("🔍 Preloved Request", usage.activePrelovedRequests, usage.limit, SageLight)
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
                         ProfileMenuItem(emoji = "📦", label = "Jastip Saya",
                             subtitle = "Lihat semua jastip kamu", bgColor = SagePale,
                             onClick = onNavigateToJastipSaya)
@@ -224,7 +289,7 @@ fun ProfileScreen(
                             onClick = onNavigateToPrelovedSaya)
                         ProfileMenuItem(emoji = "⭐", label = "Review & Rating",
                             subtitle = "— ulasan diterima", bgColor = GoldPale,
-                            onClick = onNavigateToReview)
+                            onClick = { showReviewDialog = true })
                         ProfileMenuItem(emoji = "⚙️", label = "Pengaturan",
                             subtitle = "Akun, notifikasi, privasi", bgColor = CreamDark,
                             onClick = onNavigateToPengaturan)
@@ -277,6 +342,48 @@ fun ProfileScreen(
             }
         }
     }
+
+    if (showReviewDialog) {
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            icon = {
+                Box(
+                    modifier = Modifier.size(52.dp).clip(CircleShape).background(GoldPale),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⭐", fontSize = 24.sp)
+                }
+            },
+            title = {
+                Text(
+                    "Review & Rating",
+                    fontFamily = FrauncesFamily,
+                    color = Charcoal,
+                    fontSize = 22.sp
+                )
+            },
+            text = {
+                Text(
+                    "Fitur ini sedang disiapkan. Untuk sementara, transaksi dan komunikasi tetap dilakukan lewat WhatsApp.",
+                    fontFamily = DmSansFamily,
+                    color = Charcoal60,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showReviewDialog = false },
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+                ) {
+                    Text("Mengerti", color = Cream, fontFamily = DmSansFamily)
+                }
+            },
+            shape = RoundedCornerShape(Radius.xl),
+            containerColor = Cream
+        )
+    }
 }
 
 // Sensor WA: 0812-xxxx-8901
@@ -285,6 +392,32 @@ private fun maskWaNumber(wa: String): String {
     return if (digits.length >= 6) {
         "${digits.take(4)}-xxxx-${digits.takeLast(4)}"
     } else wa
+}
+
+@Composable
+private fun UsageLimitRow(
+    label: String,
+    count: Int,
+    limit: Int,
+    color: androidx.compose.ui.graphics.Color
+) {
+    val progress = (count.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 11.sp, color = Cream.copy(alpha = 0.82f), fontFamily = DmSansFamily)
+            Text("$count/$limit", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Cream, fontFamily = DmSansFamily)
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Radius.full)),
+            color = color,
+            trackColor = Cream.copy(alpha = 0.12f)
+        )
+    }
 }
 
 // ── MENU ITEM ─────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -31,12 +32,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.PrelovedDto
 import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.data.model.formattedMaxPrice
+import com.titipin.app.data.model.primaryImageUrl
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.theme.*
@@ -45,6 +48,8 @@ import com.titipin.app.ui.theme.*
 fun HomeScreen(
     onNavigateToJastip: () -> Unit = {},
     onNavigateToPreloved: () -> Unit = {},
+    onNavigateToJastipDetail: (String) -> Unit = {},
+    onNavigateToPrelovedDetail: (String) -> Unit = {},
     onNavigateToPengaturan: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -104,11 +109,20 @@ fun HomeScreen(
                         .background(Brush.linearGradient(listOf(Sage, Terracotta))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        uiState.userInitials.ifEmpty { "T" },
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        color = Color.White, fontFamily = DmSansFamily
-                    )
+                    if (!uiState.userAvatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = uiState.userAvatarUrl,
+                            contentDescription = "Foto profil",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            uiState.userInitials.ifEmpty { "T" },
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = Color.White, fontFamily = DmSansFamily
+                        )
+                    }
                 }
             }
 
@@ -129,8 +143,8 @@ fun HomeScreen(
                     jastipResults   = uiState.searchJastip,
                     prelovedResults = uiState.searchPreloved,
                     query           = uiState.searchQuery,
-                    onJastipClick   = onNavigateToJastip,
-                    onPrelovedClick = onNavigateToPreloved
+                    onJastipClick   = onNavigateToJastipDetail,
+                    onPrelovedClick = onNavigateToPrelovedDetail
                 )
             }
 
@@ -447,7 +461,9 @@ fun HomeSearchBar(
 @Composable
 fun SearchResultsContent(
     jastipResults: List<JastipDto>, prelovedResults: List<PrelovedDto>,
-    query: String, onJastipClick: () -> Unit, onPrelovedClick: () -> Unit
+    query: String,
+    onJastipClick: (String) -> Unit,
+    onPrelovedClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.padding(horizontal = Spacing.lg),
@@ -467,12 +483,13 @@ fun SearchResultsContent(
             jastipResults.take(3).forEach { jastip ->
                 SearchResultItem(
                     emoji   = "📦",
+                    imageUrl = jastip.primaryImageUrl(),
                     title   = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },
                     subtitle = jastip.user.name.trim(),
                     badge   = if (jastip.status == "ACTIVE") "Aktif" else "Tutup",
                     badgeBg = if (jastip.status == "ACTIVE") SagePale else CreamDark,
                     badgeFg = if (jastip.status == "ACTIVE") Sage else Charcoal30,
-                    onClick = onJastipClick
+                    onClick = { onJastipClick(jastip.id) }
                 )
             }
         }
@@ -484,9 +501,9 @@ fun SearchResultsContent(
             )
             prelovedResults.take(3).forEach { item ->
                 SearchResultItem(
-                    emoji   = "🛍️", title = item.title, subtitle = item.formattedPrice(),
+                    emoji   = "🛍️", imageUrl = item.primaryImageUrl(), title = item.title, subtitle = item.formattedPrice(),
                     badge   = item.category?.name ?: "Preloved", badgeBg = TerracottaPale, badgeFg = Terracotta,
-                    onClick = onPrelovedClick
+                    onClick = { onPrelovedClick(item.id) }
                 )
             }
         }
@@ -508,7 +525,10 @@ fun SearchResultsContent(
 
 @Composable
 private fun SearchResultItem(
-    emoji: String, title: String, subtitle: String,
+    emoji: String,
+    imageUrl: String? = null,
+    title: String,
+    subtitle: String,
     badge: String, badgeBg: Color, badgeFg: Color, onClick: () -> Unit
 ) {
     Row(
@@ -518,7 +538,21 @@ private fun SearchResultItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(emoji, fontSize = 16.sp)
+        Box(
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(Radius.sm)).background(CreamDark),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(emoji, fontSize = 16.sp)
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,

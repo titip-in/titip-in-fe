@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,9 +22,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.RequestDto
+import com.titipin.app.data.model.primaryImageUrl
 import com.titipin.app.shared.formatDeadlineDisplay
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.ui.components.LimitReachedDialog
+import com.titipin.app.ui.jastip.EditDeadlineDialog
+import com.titipin.app.ui.jastip.EditJastipSheet
+import com.titipin.app.ui.jastip.EditRequestSheet
 import com.titipin.app.ui.theme.*
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,17 +43,27 @@ fun JastipSayaScreen(
 ) {
     val listState   by viewModel.listState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val itemForEdit by viewModel.itemForEdit.collectAsState()
+    val fetchingEditId by viewModel.fetchingEditId.collectAsState()
     // 0=Listing Aktif, 1=Request Saya, 2=Selesai
     var selectedTab by remember { mutableStateOf(0) }
+    var editRequest by remember { mutableStateOf<RequestDto?>(null) }
+    var reopenJastip by remember { mutableStateOf<JastipDto?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var limitDialogMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(actionState) {
         when (actionState) {
             is JastipSayaActionState.Success -> {
                 viewModel.resetActionState()
                 viewModel.loadData()
+            }
+            is JastipSayaActionState.LimitReached -> {
+                limitDialogMessage = (actionState as JastipSayaActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             is JastipSayaActionState.Error -> {
                 scope.launch { snackbarHostState.showSnackbar((actionState as JastipSayaActionState.Error).message) }
@@ -158,6 +175,8 @@ fun JastipSayaScreen(
                                             jastip          = jastip,
                                             isActionLoading = isActionLoading,
                                             onClick         = { onNavigateToDetail(jastip.id) },
+                                            onEdit          = { viewModel.fetchJastipForEdit(jastip.id) },
+                                            isEditLoading   = fetchingEditId == jastip.id,
                                             onTutup         = { viewModel.updateJastipStatus(jastip.id, "CLOSED") },
                                             onHapus         = { viewModel.deleteJastip(jastip.id) }
                                         )
@@ -183,6 +202,7 @@ fun JastipSayaScreen(
                                             request         = req,
                                             isActionLoading = isActionLoading,
                                             onClick         = { onNavigateToRequestDetail(req.id) },
+                                            onEdit          = { editRequest = req },
                                             onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
                                             onHapus         = { viewModel.deleteRequest(req.id) }
                                         )
@@ -213,7 +233,10 @@ fun JastipSayaScreen(
                                                 jastip          = jastip,
                                                 isActionLoading = isActionLoading,
                                                 onClick         = { onNavigateToDetail(jastip.id) },
+                                                onEdit          = { viewModel.fetchJastipForEdit(jastip.id) },
+                                                isEditLoading   = fetchingEditId == jastip.id,
                                                 onTutup         = null,
+                                                onBuka          = { reopenJastip = jastip },
                                                 onHapus         = { viewModel.deleteJastip(jastip.id) }
                                             )
                                         }
@@ -227,7 +250,9 @@ fun JastipSayaScreen(
                                                 request         = req,
                                                 isActionLoading = isActionLoading,
                                                 onClick         = { onNavigateToRequestDetail(req.id) },
+                                                onEdit          = { editRequest = req },
                                                 onTutup         = null,
+                                                onBuka          = { viewModel.updateRequestStatus(req.id, "OPEN") },
                                                 onHapus         = { viewModel.deleteRequest(req.id) }
                                             )
                                         }
@@ -241,6 +266,48 @@ fun JastipSayaScreen(
             }
         }
     }
+
+    if (limitDialogMessage != null) {
+        LimitReachedDialog(
+            message = limitDialogMessage.orEmpty(),
+            onDismiss = { limitDialogMessage = null }
+        )
+    }
+
+    itemForEdit?.let { item ->
+        EditJastipSheet(
+            item = item,
+            categories = categories,
+            onDismiss = { viewModel.clearItemForEdit() },
+            onSubmit = { title, fromLoc, toLoc, deadline, notes, categoryId, imageUris, existingUrls ->
+                viewModel.updateJastip(item.id, title, fromLoc, toLoc, deadline, notes, categoryId, imageUris, existingUrls)
+                viewModel.clearItemForEdit()
+            }
+        )
+    }
+
+    editRequest?.let { item ->
+        EditRequestSheet(
+            item = item,
+            categories = categories,
+            onDismiss = { editRequest = null },
+            onSubmit = { title, fromLoc, toLoc, notes, categoryId ->
+                viewModel.updateRequest(item.id, title, fromLoc, toLoc, notes, categoryId)
+                editRequest = null
+            }
+        )
+    }
+
+    reopenJastip?.let { item ->
+        EditDeadlineDialog(
+            currentDeadline = item.deadline,
+            onDismiss = { reopenJastip = null },
+            onSubmit = { deadline ->
+                viewModel.reopenJastip(item.id, deadline)
+                reopenJastip = null
+            }
+        )
+    }
 }
 
 // ── JASTIP LISTING CARD ───────────────────────────────────────────
@@ -249,13 +316,19 @@ private fun JastipSayaCard(
     jastip: JastipDto,
     isActionLoading: Boolean,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
+    isEditLoading: Boolean = false,
     onTutup: (() -> Unit)?,
+    onBuka: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCloseDialog by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
     val deadlineDisplay  = formatDeadlineDisplay(jastip.deadline, includeYear = false)
     val createdAtLabel   = timeAgo(jastip.createdAt)
     val isActive         = jastip.status == "ACTIVE"
+    val imageUrl = jastip.primaryImageUrl()
 
     Card(
         modifier  = Modifier.fillMaxWidth().clickable { onClick() },
@@ -264,6 +337,18 @@ private fun JastipSayaCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
+            if (!imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = jastip.title.ifBlank { "Foto jastip" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(Radius.md)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.height(Spacing.sm))
+            }
             // Rute + status
             Row(modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,9 +393,23 @@ private fun JastipSayaCard(
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
                         fontWeight = FontWeight.Medium)
                 }
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                    .clickable(enabled = !isActionLoading && !isEditLoading) { onEdit() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center) {
+                    if (isEditLoading) {
+                        CircularProgressIndicator(
+                            color = Gold, strokeWidth = 1.5.dp,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    } else {
+                        Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
+                            fontWeight = FontWeight.Medium)
+                    }
+                }
                 if (onTutup != null) {
                     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
-                        .clickable(enabled = !isActionLoading) { onTutup() }
+                        .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
                         if (isActionLoading) {
@@ -319,6 +418,14 @@ private fun JastipSayaCard(
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
                                 fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                         }
+                    }
+                }
+                if (onBuka != null) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                        .clickable(enabled = !isActionLoading) { showReopenDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text("Buka Lagi", fontSize = 12.sp, color = Cream,
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -332,6 +439,24 @@ private fun JastipSayaCard(
             onDismiss = { showDeleteDialog = false }
         )
     }
+    if (showCloseDialog && onTutup != null) {
+        SayaDeleteDialog(
+            title = "Tutup Jastip?",
+            message = "Listing ini akan dipindahkan ke selesai dan tidak tampil sebagai jastip aktif.",
+            confirmLabel = "Tutup",
+            onConfirm = { showCloseDialog = false; onTutup() },
+            onDismiss = { showCloseDialog = false }
+        )
+    }
+    if (showReopenDialog && onBuka != null) {
+        SayaDeleteDialog(
+            title = "Buka Lagi Jastip?",
+            message = "Listing ini akan aktif lagi jika limit aktif kamu masih tersedia.",
+            confirmLabel = "Buka Lagi",
+            onConfirm = { showReopenDialog = false; onBuka() },
+            onDismiss = { showReopenDialog = false }
+        )
+    }
 }
 
 // ── JASTIP REQUEST CARD ───────────────────────────────────────────
@@ -340,11 +465,16 @@ private fun JastipRequestSayaCard(
     request: RequestDto,
     isActionLoading: Boolean,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onTutup: (() -> Unit)?,
+    onBuka: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCloseDialog by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
     val isOpen = request.status == "OPEN"
+    val createdAtLabel = timeAgo(request.createdAt ?: request.updatedAt.orEmpty())
 
     Card(
         modifier  = Modifier.fillMaxWidth().clickable { onClick() },
@@ -352,76 +482,111 @@ private fun JastipRequestSayaCard(
         colors    = CardDefaults.cardColors(containerColor = Cream),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column {
-            // Route header bar (sama dengan RequestCard di JastipScreen)
-            Box(
-                modifier = Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = Radius.lg, topEnd = Radius.lg))
-                    .background(Charcoal)
-                    .padding(horizontal = Spacing.md, vertical = 10.dp)
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            // Title + status badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("DARI", fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp, color = Cream.copy(alpha = 0.4f), fontFamily = DmSansFamily)
-                        Text(request.fromLocation, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            color = Cream, fontFamily = DmSansFamily,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Text("→", fontSize = 18.sp, color = Terracotta,
-                        modifier = Modifier.padding(horizontal = 8.dp))
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                        Text("KE", fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp, color = Cream.copy(alpha = 0.4f), fontFamily = DmSansFamily)
-                        Text(request.toLocation, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            color = Cream, fontFamily = DmSansFamily,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    }
+                Text(
+                    request.title,
+                    fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                    color = Charcoal, fontFamily = FrauncesFamily,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.full))
+                        .background(if (isOpen) SagePale else CreamDark)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        if (isOpen) "AKTIF" else "TUTUP",
+                        fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                        color = if (isOpen) Sage else Charcoal30, fontFamily = DmSansFamily
+                    )
                 }
             }
-            Column(modifier = Modifier.padding(Spacing.md)) {
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(request.title, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                        color = Charcoal, fontFamily = FrauncesFamily,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(8.dp))
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full))
-                        .background(if (isOpen) SagePale else CreamDark)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)) {
-                        Text(if (isOpen) "OPEN" else "CLOSED", fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                            color = if (isOpen) Sage else Charcoal30, fontFamily = DmSansFamily)
+            Spacer(Modifier.height(6.dp))
+
+            // Rute dalam kotak CreamDark (konsisten dengan card lain)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(CreamDark)
+                    .padding(horizontal = Spacing.sm, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("DARI", fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Text(request.fromLocation, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = Charcoal, fontFamily = DmSansFamily,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text("→", fontSize = 16.sp, color = Terracotta,
+                    modifier = Modifier.padding(horizontal = 8.dp))
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    Text("KE", fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Text(request.toLocation, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = Charcoal, fontFamily = DmSansFamily,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+
+            // Chips kategori + waktu
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (request.category != null) {
+                    JastipSayaChip("${request.category.icon ?: ""} ${request.category.name}".trim())
+                }
+                JastipSayaChip("🕐 $createdAtLabel")
+            }
+
+            Spacer(Modifier.height(Spacing.sm))
+            HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
+            Spacer(Modifier.height(Spacing.sm))
+
+            // Action buttons
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                    .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Medium)
+                }
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                    .clickable(enabled = !isActionLoading) { onEdit() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Medium)
+                }
+                if (onTutup != null && isOpen) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                        .clickable(enabled = !isActionLoading) { showCloseDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center) {
+                        if (isActionLoading) {
+                            CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
+                        } else {
+                            Text("✓ Tutup", fontSize = 12.sp, color = Cream,
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(timeAgo(request.createdAt ?: request.updatedAt.orEmpty()),
-                    fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
-                Spacer(Modifier.height(Spacing.sm))
-                HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
-                Spacer(Modifier.height(Spacing.sm))
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
-                        .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
+                if (onBuka != null) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                        .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                            fontWeight = FontWeight.Medium)
-                    }
-                    if (onTutup != null && isOpen) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
-                            .clickable(enabled = !isActionLoading) { onTutup() }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center) {
-                            if (isActionLoading) {
-                                CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
-                            } else {
-                                Text("✓ Tutup", fontSize = 12.sp, color = Cream,
-                                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                        Text("Buka Lagi", fontSize = 12.sp, color = Cream,
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -433,6 +598,24 @@ private fun JastipRequestSayaCard(
             message = "Request \"${request.title}\" akan dihapus permanen.",
             onConfirm = { showDeleteDialog = false; onHapus() },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+    if (showCloseDialog && onTutup != null) {
+        SayaDeleteDialog(
+            title = "Tutup Request?",
+            message = "Request ini akan dipindahkan ke selesai dan tidak tampil sebagai request aktif.",
+            confirmLabel = "Tutup",
+            onConfirm = { showCloseDialog = false; onTutup() },
+            onDismiss = { showCloseDialog = false }
+        )
+    }
+    if (showReopenDialog && onBuka != null) {
+        SayaDeleteDialog(
+            title = "Buka Lagi Request?",
+            message = "Request ini akan aktif lagi jika limit aktif kamu masih tersedia.",
+            confirmLabel = "Buka Lagi",
+            onConfirm = { showReopenDialog = false; onBuka() },
+            onDismiss = { showReopenDialog = false }
         )
     }
 }
@@ -464,6 +647,7 @@ internal fun SayaSectionLabel(text: String) {
 @Composable
 internal fun SayaDeleteDialog(
     title: String, message: String,
+    confirmLabel: String = "Hapus",
     onConfirm: () -> Unit, onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -477,7 +661,7 @@ internal fun SayaDeleteDialog(
         confirmButton = {
             Button(onClick = onConfirm, shape = RoundedCornerShape(Radius.full),
                 colors = ButtonDefaults.buttonColors(containerColor = Terracotta)) {
-                Text("Hapus", fontFamily = DmSansFamily, color = Cream)
+                Text(confirmLabel, fontFamily = DmSansFamily, color = Cream)
             }
         },
         dismissButton = {

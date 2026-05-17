@@ -32,11 +32,18 @@ data class JastipDto(
     val latitude: Double? = null,
     @SerializedName("lng")
     val longitude: Double? = null,
-    val images: List<ListingImageDto> = emptyList(),
+    val images: List<ListingImageDto>? = emptyList(),
+    @SerializedName("primary_image_url")
+    val primaryImageUrlRaw: String? = null,  // field langsung dari API list
     val status: String,             // "ACTIVE" | "CLOSED"
     @SerializedName("created_at")
     val createdAt: String
 )
+
+fun JastipDto.primaryImageUrl(): String? =
+    images.orEmpty().firstOrNull { it.isPrimary }?.imageUrl
+        ?: images.orEmpty().firstOrNull()?.imageUrl
+        ?: primaryImageUrlRaw  // fallback ke field direct jika images tidak direturn API
 
 // ── REQUEST MODELS ─────────────────────────────────────────────────
 
@@ -81,7 +88,6 @@ data class UpdateJastipListingRequest(
     val primaryImageUrl: String? = null,
     val images: List<String>? = null
 )
-
 
 
 

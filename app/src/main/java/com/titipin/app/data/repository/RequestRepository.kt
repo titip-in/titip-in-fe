@@ -75,6 +75,19 @@ class RequestRepository @Inject constructor(
         }
     }
 
+    suspend fun updateRequest(id: String, body: UpdateRequestBody): Result<RequestDto> {
+        return try {
+            val response = apiService.updateRequest(id, body)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()!!.data!!)
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mengubah request")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
     suspend fun deleteRequest(id: String): Result<Unit> {
         return try {
             val response = apiService.deleteRequest(id)

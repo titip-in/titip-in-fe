@@ -15,7 +15,9 @@ data class PrelovedDto(
     val description: String?,
     val price: Int,
     val condition: String,   // "NEW" | "LIKE_NEW" | "GOOD" | "FAIR"
-    val images: List<ListingImageDto> = emptyList(),
+    val images: List<ListingImageDto>? = emptyList(),
+    @SerializedName("primary_image_url")
+    val primaryImageUrlRaw: String? = null,  // field langsung dari API list
     val status: String,      // "AVAILABLE" | "SOLD" | "CLOSED"
     @SerializedName("created_at")
     val createdAt: String? = null,
@@ -69,4 +71,6 @@ fun PrelovedDto.formattedPrice(): String {
 }
 
 fun PrelovedDto.primaryImageUrl(): String? =
-    images.firstOrNull { it.isPrimary }?.imageUrl ?: images.firstOrNull()?.imageUrl
+    images.orEmpty().firstOrNull { it.isPrimary }?.imageUrl
+        ?: images.orEmpty().firstOrNull()?.imageUrl
+        ?: primaryImageUrlRaw  // fallback ke field direct jika images tidak direturn API

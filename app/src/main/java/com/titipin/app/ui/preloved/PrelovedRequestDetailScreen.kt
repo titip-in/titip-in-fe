@@ -27,6 +27,8 @@ import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageWanted
 import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.components.UserContactPanel
+import com.titipin.app.ui.components.SupportPanel
+import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -37,7 +39,12 @@ fun PrelovedRequestDetailScreen(
 ) {
     val actionState    by viewModel.actionState.collectAsState()
     val listState      by viewModel.listState.collectAsState()
+    val categoryState  by viewModel.categoryState.collectAsState()
+    val currentUserId  by viewModel.currentUserId.collectAsState()
     val context        = LocalContext.current
+
+    var limitReachedMsg by remember { mutableStateOf<String?>(null) }
+    var showEditSheet by remember { mutableStateOf(false) }
 
     // Cari item dari list state (detail endpoint diakses via list / cache)
     var request by remember { mutableStateOf<PrelovedRequestDto?>(null) }
@@ -61,9 +68,14 @@ fun PrelovedRequestDetailScreen(
                     viewModel.resetActionState()
                     onBack()
                 } else {
+                    showEditSheet = false
                     viewModel.resetActionState()
                     viewModel.loadPrelovedRequestList()
                 }
+            }
+            is PrelovedRequestActionState.LimitReached -> {
+                limitReachedMsg = (actionState as PrelovedRequestActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             else -> Unit
         }
@@ -198,7 +210,7 @@ fun PrelovedRequestDetailScreen(
                     )
 
                     // ── Chips info ──────────────────────────────────
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (formattedBudget != null) {
                             PrelovedRequestDetailChip("💰 $formattedBudget")
                         }
@@ -255,11 +267,26 @@ fun PrelovedRequestDetailScreen(
                         )
                     }
 
-                    // ── Tombol aksi owner ───────────────────────────
-                    // Note: No ownership check here since we use list state (not "me" endpoint)
-                    // Owner panel bisa ditambahkan dari PrelovedRequestMyScreen di future phase
+                    val isOwner = currentUserId == item.userId?.toString()
 
-                    Spacer(Modifier.height(Spacing.lg))
+                    if (isOwner) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        OwnerPanel(
+                            status = item.status,
+                            isLoading = actionState is PrelovedRequestActionState.Loading,
+                            onToggleStatus = {
+                                viewModel.toggleStatus(item.id, item.status)
+                            },
+                            onEdit = { showEditSheet = true },
+                            onDelete = { viewModel.deletePrelovedRequest(item.id) }
+                        )
+                    }
+
+                    Spacer(Modifier.height(Spacing.xl))
+
+                    SupportPanel()
+
+                    Spacer(Modifier.height(100.dp))
                 }
 
                 // ── CTA bar ────────────────────────────────────────
@@ -297,6 +324,24 @@ fun PrelovedRequestDetailScreen(
             }
         }
     }
+
+    if (limitReachedMsg != null) {
+        LimitReachedDialog(
+            message = limitReachedMsg.orEmpty(),
+            onDismiss = { limitReachedMsg = null }
+        )
+    }
+
+    if (showEditSheet && request != null) {
+        EditPrelovedRequestSheet(
+            item = request!!,
+            categories = (categoryState as? PrelovedRequestCategoryState.Success)?.data.orEmpty(),
+            onDismiss = { showEditSheet = false },
+            onSubmit = { title, description, maxPrice, categoryId ->
+                viewModel.updatePrelovedRequestFields(request!!.id, title, description, maxPrice, categoryId)
+            }
+        )
+    }
 }
 
 @Composable
@@ -308,5 +353,109 @@ private fun PrelovedRequestDetailChip(text: String) {
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(text, fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily)
+    }
+}
+
+@Composable
+private fun OwnerPanel(
+    status: String,
+    isLoading: Boolean,
+    onToggleStatus: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showStatusConfirm by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .background(CreamDark)
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "KELOLA PENCARIAN",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = Charcoal60,
+            fontFamily = DmSansFamily
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { showStatusConfirm = true },
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full),
+                colors = ButtonDefaults.buttonColors(containerColor = Charcoal, contentColor = Cream)
+            ) {
+                Text(
+                    text = if (status == "OPEN") "Tutup" else "Buka",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            OutlinedButton(
+                onClick = onEdit,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Edit", fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal)
+            }
+            OutlinedButton(
+                onClick = { showDeleteConfirm = true },
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
+            }
+        }
+    }
+
+    if (showStatusConfirm) {
+        val isReopen = status == "CLOSED"
+        AlertDialog(
+            onDismissRequest = { showStatusConfirm = false },
+            containerColor = Cream,
+            title = { Text("Ubah Status?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text(if (isReopen) "Buka kembali pencarian barang ini?" else "Tutup pencarian barang ini?", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStatusConfirm = false
+                    onToggleStatus()
+                }) {
+                    Text("Ya, Lanjutkan", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusConfirm = false }) { Text("Batal", color = Charcoal60, fontFamily = DmSansFamily) }
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Hapus Pencarian?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Pencarian yang dihapus tidak bisa dikembalikan.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                }) {
+                    Text("Hapus", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Batal", color = Charcoal60, fontFamily = DmSansFamily)
+                }
+            }
+        )
     }
 }

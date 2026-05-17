@@ -26,7 +26,9 @@ import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.data.model.primaryImageUrl
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessagePreloved
+import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.UserContactPanel
+import com.titipin.app.ui.components.SupportPanel
 import com.titipin.app.ui.theme.*
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -38,8 +40,12 @@ fun PrelovedDetailScreen(
 ) {
     val detailState by viewModel.detailState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val context = LocalContext.current
+
+    var limitReachedMsg by remember { mutableStateOf<String?>(null) }
+    var showEditSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(prelovedId) { viewModel.loadDetail(prelovedId) }
     LaunchedEffect(actionState) {
@@ -50,8 +56,13 @@ fun PrelovedDetailScreen(
                     onBack()
                     return@LaunchedEffect
                 }
+                showEditSheet = false
                 viewModel.resetActionState()
                 viewModel.loadDetail(prelovedId)
+            }
+            is PrelovedActionState.LimitReached -> {
+                limitReachedMsg = (actionState as PrelovedActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             else -> Unit
         }
@@ -68,12 +79,13 @@ fun PrelovedDetailScreen(
                     CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
                 }
             }
-            is PrelovedActionState.Error -> {
+            is PrelovedActionState.Error, is PrelovedActionState.LimitReached -> {
+                val errorMsg = if (state is PrelovedActionState.Error) state.message else (state as PrelovedActionState.LimitReached).message
                 Box(Modifier.fillMaxSize().statusBarsPadding(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("😕", fontSize = 40.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text(state.message, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
+                        Text(errorMsg, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
                         Spacer(Modifier.height(12.dp))
                         TextButton(onClick = onBack) {
                             Text("Kembali", color = Terracotta, fontFamily = DmSansFamily)
@@ -259,14 +271,19 @@ fun PrelovedDetailScreen(
                             isLoading = actionState is PrelovedActionState.Loading,
                             onMarkSold = { viewModel.updateStatus(item.id, "SOLD") },
                             onToggleClosed = {
-                                val nextStatus = if (item.status == "CLOSED") "AVAILABLE" else "CLOSED"
+                                val nextStatus = if (item.status == "AVAILABLE") "CLOSED" else "AVAILABLE"
                                 viewModel.updateStatus(item.id, nextStatus)
                             },
+                            onEdit = { showEditSheet = true },
                             onDelete = { viewModel.deletePreloved(item.id) }
                         )
                     }
 
-                    Spacer(Modifier.height(Spacing.md))
+                    Spacer(Modifier.height(Spacing.xl))
+
+                    SupportPanel()
+
+                    Spacer(Modifier.height(100.dp))
                 }
 
                 // ── CTA ───────────────────────────────────────────
@@ -303,6 +320,27 @@ fun PrelovedDetailScreen(
             }
         }
     }
+
+    if (limitReachedMsg != null) {
+        LimitReachedDialog(
+            message = limitReachedMsg.orEmpty(),
+            onDismiss = { limitReachedMsg = null }
+        )
+    }
+
+    if (showEditSheet && detailState is PrelovedActionState.Success) {
+        val item = (detailState as PrelovedActionState.Success).data
+        if (item != null) {
+            EditPrelovedSheet(
+                item = item,
+                categories = (categoryState as? PrelovedCategoryState.Success)?.data.orEmpty(),
+                onDismiss = { showEditSheet = false },
+                onSubmit = { title, price, condition, description, categoryId, imageUris, existingUrls ->
+                    viewModel.updatePreloved(item.id, title, price, condition, description, categoryId, imageUris, existingUrls)
+                }
+            )
+        }
+    }
 }
 
 @Composable
@@ -323,9 +361,11 @@ private fun PrelovedOwnerPanel(
     isLoading: Boolean,
     onMarkSold: () -> Unit,
     onToggleClosed: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showStatusConfirm by remember { mutableStateOf<String?>(null) } // null, "SOLD", "CLOSED", "AVAILABLE"
 
     Column(
         modifier = Modifier
@@ -337,50 +377,93 @@ private fun PrelovedOwnerPanel(
     ) {
         Text(
             text = "KELOLA BARANG",
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp,
-            color = Charcoal60,
-            fontFamily = DmSansFamily
+            fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+            color = Charcoal60, fontFamily = DmSansFamily
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onMarkSold,
-                enabled = !isLoading && status != "SOLD",
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(Radius.full),
-                colors = ButtonDefaults.buttonColors(containerColor = Charcoal, contentColor = Cream)
-            ) {
-                Text("Terjual", fontFamily = DmSansFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            if (status == "AVAILABLE") {
+                Button(
+                    onClick = { showStatusConfirm = "SOLD" },
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Sage, contentColor = Cream)
+                ) {
+                    Text("Tandai Terjual", fontFamily = DmSansFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
+            if (status != "AVAILABLE") {
+                Button(
+                    onClick = { showStatusConfirm = "AVAILABLE" },
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Sage, contentColor = Cream)
+                ) {
+                    Text("Buka Lagi", fontFamily = DmSansFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                Button(
+                    onClick = { showStatusConfirm = "CLOSED" },
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Charcoal, contentColor = Cream)
+                ) {
+                    Text("Tutup", fontFamily = DmSansFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = onToggleClosed,
+                onClick = onEdit,
                 enabled = !isLoading,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(Radius.full)
             ) {
-                Text(
-                    text = if (status == "CLOSED") "Buka" else "Tutup",
-                    fontFamily = DmSansFamily,
-                    fontSize = 12.sp,
-                    color = Terracotta
-                )
+                Text("Edit", fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal)
+            }
+            OutlinedButton(
+                onClick = { showDeleteConfirm = true },
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
             }
         }
-        OutlinedButton(
-            onClick = { showDeleteConfirm = true },
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radius.full)
-        ) {
-            Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
+    }
+
+    if (showStatusConfirm != null) {
+        val actionText = when (showStatusConfirm) {
+            "SOLD" -> "Tandai barang ini sudah terjual?"
+            "CLOSED" -> "Tutup sementara listing barang ini?"
+            else -> "Buka kembali listing barang ini?"
         }
+        AlertDialog(
+            onDismissRequest = { showStatusConfirm = null },
+            containerColor = Cream,
+            title = { Text("Ubah Status?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text(actionText, fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = showStatusConfirm
+                    showStatusConfirm = null
+                    if (target == "SOLD") onMarkSold() else onToggleClosed()
+                }) {
+                    Text("Ya, Lanjutkan", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusConfirm = null }) { Text("Batal", color = Charcoal60, fontFamily = DmSansFamily) }
+            }
+        )
     }
 
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Hapus barang?", fontFamily = FrauncesFamily, color = Charcoal) },
+            title = { Text("Hapus Barang?", fontFamily = FrauncesFamily, color = Charcoal) },
             text = { Text("Barang yang dihapus tidak bisa dikembalikan.", fontFamily = DmSansFamily) },
             confirmButton = {
                 TextButton(onClick = {

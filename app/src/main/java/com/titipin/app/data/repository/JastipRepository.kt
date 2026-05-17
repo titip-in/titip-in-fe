@@ -35,6 +35,19 @@ class JastipRepository @Inject constructor(
         }
     }
 
+    suspend fun searchJastip(query: String): Result<List<JastipDto>> {
+        return try {
+            val response = apiService.searchJastip(query)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()?.data?.data.orEmpty())
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mencari jastip")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
     suspend fun createJastip(request: CreateJastipRequest): Result<JastipDto> {
         return try {
             val response = apiService.createJastip(request)
@@ -54,7 +67,21 @@ class JastipRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal update status")
+                // 400 limit error pakai field 'message', bukan 'error.message'
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal update status")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
+    suspend fun updateJastip(id: String, request: UpdateJastipListingRequest): Result<JastipDto> {
+        return try {
+            val response = apiService.updateJastip(id, request)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()!!.data!!)
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mengubah jastip")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")

@@ -25,8 +25,10 @@ import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageJastipDetail
 import com.titipin.app.shared.formatTimeDisplay
 import com.titipin.app.ui.components.DetailImageGallery
+import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.components.UserContactPanel
+import com.titipin.app.ui.components.SupportPanel
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -37,8 +39,13 @@ fun JastipDetailScreen(
 ) {
     val detailState by viewModel.detailState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val context = LocalContext.current
+
+    var limitReachedMsg by remember { mutableStateOf<String?>(null) }
+    var showEditSheet by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(jastipId) { viewModel.loadDetail(jastipId) }
     LaunchedEffect(actionState) {
@@ -49,8 +56,14 @@ fun JastipDetailScreen(
                     onBack()
                     return@LaunchedEffect
                 }
+                showEditSheet = false
+                showReopenDialog = false
                 viewModel.resetActionState()
                 viewModel.loadDetail(jastipId)
+            }
+            is JastipActionState.LimitReached -> {
+                limitReachedMsg = (actionState as JastipActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             else -> Unit
         }
@@ -85,12 +98,13 @@ fun JastipDetailScreen(
                     CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
                 }
             }
-            is JastipActionState.Error -> {
+            is JastipActionState.Error, is JastipActionState.LimitReached -> {
+                val errorMsg = if (state is JastipActionState.Error) state.message else (state as JastipActionState.LimitReached).message
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("😕", fontSize = 40.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text(state.message, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
+                        Text(errorMsg, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
                         Spacer(Modifier.height(12.dp))
                         TextButton(onClick = onBack) {
                             Text("Kembali", color = Terracotta, fontFamily = DmSansFamily)
@@ -114,7 +128,7 @@ fun JastipDetailScreen(
                     Spacer(Modifier.height(Spacing.sm))
 
                     DetailImageGallery(
-                        images = jastip.images,
+                        images = jastip.images.orEmpty(),
                         contentDescription = jastip.title.ifBlank { "Foto jastip" }
                     )
 
@@ -176,7 +190,7 @@ fun JastipDetailScreen(
                     // ── INFO TILES ────────────────────────────────
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
                         InfoTile("📅", "TANGGAL", deadlineDate, Modifier.weight(1f))
-                        InfoTile("⏰", "DEADLINE", deadlineTime, Modifier.weight(1f))
+                        InfoTile("⏰", "BATAS NITIP", deadlineTime, Modifier.weight(1f))
                     }
 
                     if (!jastip.notes.isNullOrEmpty()) {
@@ -221,14 +235,22 @@ fun JastipDetailScreen(
                             status = jastip.status,
                             isLoading = actionState is JastipActionState.Loading,
                             onToggleStatus = {
-                                val nextStatus = if (jastip.status == "ACTIVE") "CLOSED" else "ACTIVE"
-                                viewModel.updateStatus(jastip.id, nextStatus)
+                                if (jastip.status == "CLOSED") {
+                                    showReopenDialog = true
+                                } else {
+                                    viewModel.updateStatus(jastip.id, "CLOSED")
+                                }
                             },
+                            onEdit = { showEditSheet = true },
                             onDelete = { viewModel.deleteJastip(jastip.id) }
                         )
                     }
 
                     Spacer(Modifier.height(Spacing.xl))
+
+                    SupportPanel()
+
+                    Spacer(Modifier.height(100.dp))
                 }
 
                 // ── BOTTOM CTA ────────────────────────────────────
@@ -268,6 +290,40 @@ fun JastipDetailScreen(
             }
         }
     }
+
+    if (limitReachedMsg != null) {
+        LimitReachedDialog(
+            message = limitReachedMsg.orEmpty(),
+            onDismiss = { limitReachedMsg = null }
+        )
+    }
+
+    if (showReopenDialog && detailState is JastipActionState.Success) {
+        val jastip = (detailState as JastipActionState.Success).data
+        if (jastip != null) {
+            EditDeadlineDialog(
+                currentDeadline = jastip.deadline,
+                onDismiss = { showReopenDialog = false },
+                onSubmit = { newDeadline ->
+                    viewModel.reopenJastip(jastip.id, newDeadline)
+                }
+            )
+        }
+    }
+
+    if (showEditSheet && detailState is JastipActionState.Success) {
+        val jastip = (detailState as JastipActionState.Success).data
+        if (jastip != null) {
+            EditJastipSheet(
+                item = jastip,
+                categories = (categoryState as? JastipCategoryState.Success)?.data.orEmpty(),
+                onDismiss = { showEditSheet = false },
+                onSubmit = { title, fromLoc, toLoc, deadline, notes, categoryId, imageUris, existingUrls ->
+                    viewModel.updateJastip(jastip.id, title, fromLoc, toLoc, deadline, notes, categoryId, imageUris, existingUrls)
+                }
+            )
+        }
+    }
 }
 
 // ── INFO TILE ─────────────────────────────────────────────────────
@@ -293,9 +349,11 @@ private fun OwnerPanel(
     status: String,
     isLoading: Boolean,
     onToggleStatus: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showStatusConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -315,7 +373,7 @@ private fun OwnerPanel(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = onToggleStatus,
+                onClick = { showStatusConfirm = true },
                 enabled = !isLoading,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(Radius.full),
@@ -329,6 +387,14 @@ private fun OwnerPanel(
                 )
             }
             OutlinedButton(
+                onClick = onEdit,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Edit", fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal)
+            }
+            OutlinedButton(
                 onClick = { showDeleteConfirm = true },
                 enabled = !isLoading,
                 modifier = Modifier.weight(1f),
@@ -337,6 +403,27 @@ private fun OwnerPanel(
                 Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
             }
         }
+    }
+
+    if (showStatusConfirm) {
+        val isReopen = status == "CLOSED"
+        AlertDialog(
+            onDismissRequest = { showStatusConfirm = false },
+            containerColor = Cream,
+            title = { Text("Ubah Status?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text(if (isReopen) "Buka kembali listing Jastip ini?" else "Tutup listing Jastip ini?", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStatusConfirm = false
+                    onToggleStatus()
+                }) {
+                    Text("Ya, Lanjutkan", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusConfirm = false }) { Text("Batal", color = Charcoal60, fontFamily = DmSansFamily) }
+            }
+        )
     }
 
     if (showDeleteConfirm) {

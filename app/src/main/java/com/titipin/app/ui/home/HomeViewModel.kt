@@ -13,7 +13,9 @@ import com.titipin.app.data.repository.PrelovedRequestRepository
 import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +26,7 @@ import javax.inject.Inject
 data class HomeUiState(
     val userName: String = "",
     val userInitials: String = "",
+    val userAvatarUrl: String? = null,
     // ── Raw data ────────────────────────────────────────────────────────────
     val allJastip: List<JastipDto> = emptyList(),
     val allPreloved: List<PrelovedDto> = emptyList(),
@@ -62,6 +65,7 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private var searchJob: Job? = null
 
     init { loadData() }
 
@@ -69,6 +73,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val name = dataStore.userName.first() ?: ""
             val wa   = dataStore.userWaNumber.first() ?: ""
+            val avatarUrl = dataStore.userAvatarUrl.first()
             val initials = name.trim()
                 .split(" ").filter { it.isNotBlank() }
                 .take(2).joinToString("") { it.first().uppercase() }
@@ -76,6 +81,7 @@ class HomeViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 userName         = name,
                 userInitials     = initials,
+                userAvatarUrl    = avatarUrl,
                 showSetupProfile = wa.isBlank() && name.isNotBlank()
             )
 
@@ -124,26 +130,23 @@ class HomeViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        if (query.isBlank()) {
+        searchJob?.cancel()
+        if (query.isBlank() || query.trim().length < 2) {
             _uiState.value = _uiState.value.copy(
                 searchJastip = emptyList(), searchPreloved = emptyList()
             )
             return
         }
-        val q = query.trim().lowercase()
-        _uiState.value = _uiState.value.copy(
-            searchJastip = _uiState.value.allJastip.filter {
-                it.title.lowercase().contains(q) ||
-                it.fromLocation.lowercase().contains(q) ||
-                it.toLocation.lowercase().contains(q) ||
-                (it.notes?.lowercase()?.contains(q) == true)
-            },
-            searchPreloved = _uiState.value.allPreloved.filter {
-                it.title.lowercase().contains(q) ||
-                (it.category?.name?.lowercase()?.contains(q) == true) ||
-                (it.description?.lowercase()?.contains(q) == true)
-            }
-        )
+        searchJob = viewModelScope.launch {
+            delay(350)
+            val q = query.trim()
+            val jastipDeferred = async { jastipRepository.searchJastip(q) }
+            val prelovedDeferred = async { prelovedRepository.searchPreloved(q) }
+            _uiState.value = _uiState.value.copy(
+                searchJastip = (jastipDeferred.await() as? Result.Success)?.data ?: emptyList(),
+                searchPreloved = (prelovedDeferred.await() as? Result.Success)?.data ?: emptyList()
+            )
+        }
     }
 
     fun clearSearch() {

@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -23,8 +24,13 @@ import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.primaryImageUrl
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.ui.components.LimitReachedDialog
+import com.titipin.app.ui.preloved.EditPrelovedRequestSheet
+import com.titipin.app.ui.preloved.EditPrelovedSheet
 import com.titipin.app.ui.theme.*
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,17 +43,26 @@ fun PrelovedSayaScreen(
 ) {
     val listState   by viewModel.listState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val itemForEdit by viewModel.itemForEdit.collectAsState()
+    val fetchingEditId by viewModel.fetchingEditId.collectAsState()
     // 0=Dijual, 1=Dicari (Request), 2=Arsip
     var selectedTab by remember { mutableStateOf(0) }
+    var editRequest by remember { mutableStateOf<PrelovedRequestDto?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var limitDialogMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(actionState) {
         when (actionState) {
             is PrelovedSayaActionState.Success -> {
                 viewModel.resetActionState()
                 viewModel.loadData()
+            }
+            is PrelovedSayaActionState.LimitReached -> {
+                limitDialogMessage = (actionState as PrelovedSayaActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             is PrelovedSayaActionState.Error -> {
                 scope.launch { snackbarHostState.showSnackbar((actionState as PrelovedSayaActionState.Error).message) }
@@ -157,7 +172,9 @@ fun PrelovedSayaScreen(
                                         PrelovedSayaCard(
                                             item            = item,
                                             isActionLoading = isActionLoading,
+                                            isEditLoading   = fetchingEditId == item.id,
                                             onLihatDetail   = { onNavigateToDetail(item.id) },
+                                            onEdit          = { viewModel.fetchPrelovedForEdit(item.id) },
                                             onMarkSold      = { viewModel.updateListingStatus(item.id, "SOLD") },
                                             onHapus         = { viewModel.deleteListing(item.id) }
                                         )
@@ -183,6 +200,7 @@ fun PrelovedSayaScreen(
                                             request         = req,
                                             isActionLoading = isActionLoading,
                                             onClick         = { onNavigateToRequestDetail(req.id) },
+                                            onEdit          = { editRequest = req },
                                             onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
                                             onHapus         = { viewModel.deleteRequest(req.id) }
                                         )
@@ -210,8 +228,11 @@ fun PrelovedSayaScreen(
                                             PrelovedSayaCard(
                                                 item            = item,
                                                 isActionLoading = isActionLoading,
+                                                isEditLoading   = fetchingEditId == item.id,
                                                 onLihatDetail   = { onNavigateToDetail(item.id) },
+                                                onEdit          = { viewModel.fetchPrelovedForEdit(item.id) },
                                                 onMarkSold      = null,
+                                                onBuka          = { viewModel.updateListingStatus(item.id, "AVAILABLE") },
                                                 onHapus         = { viewModel.deleteListing(item.id) }
                                             )
                                         }
@@ -223,7 +244,9 @@ fun PrelovedSayaScreen(
                                                 request         = req,
                                                 isActionLoading = isActionLoading,
                                                 onClick         = { onNavigateToRequestDetail(req.id) },
+                                                onEdit          = { editRequest = req },
                                                 onTutup         = null,
+                                                onBuka          = { viewModel.updateRequestStatus(req.id, "OPEN") },
                                                 onHapus         = { viewModel.deleteRequest(req.id) }
                                             )
                                         }
@@ -237,6 +260,37 @@ fun PrelovedSayaScreen(
             }
         }
     }
+
+    if (limitDialogMessage != null) {
+        LimitReachedDialog(
+            message = limitDialogMessage.orEmpty(),
+            onDismiss = { limitDialogMessage = null }
+        )
+    }
+
+    itemForEdit?.let { item ->
+        EditPrelovedSheet(
+            item = item,
+            categories = categories,
+            onDismiss = { viewModel.clearItemForEdit() },
+            onSubmit = { title, price, condition, description, categoryId, imageUris, existingUrls ->
+                viewModel.updateListing(item.id, title, price, condition, description, categoryId, imageUris, existingUrls)
+                viewModel.clearItemForEdit()
+            }
+        )
+    }
+
+    editRequest?.let { item ->
+        EditPrelovedRequestSheet(
+            item = item,
+            categories = categories,
+            onDismiss = { editRequest = null },
+            onSubmit = { title, description, maxPrice, categoryId ->
+                viewModel.updateRequest(item.id, title, description, maxPrice, categoryId)
+                editRequest = null
+            }
+        )
+    }
 }
 
 // ── PRELOVED LISTING CARD ─────────────────────────────────────────
@@ -244,11 +298,16 @@ fun PrelovedSayaScreen(
 private fun PrelovedSayaCard(
     item: PrelovedDto,
     isActionLoading: Boolean,
+    isEditLoading: Boolean = false,
     onLihatDetail: () -> Unit,
+    onEdit: () -> Unit,
     onMarkSold: (() -> Unit)?,
+    onBuka: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSoldDialog by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
     val isAvailable = item.status == "AVAILABLE"
 
     Card(
@@ -258,9 +317,19 @@ private fun PrelovedSayaCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(modifier = Modifier.padding(Spacing.md)) {
+            val imageUrl = item.primaryImageUrl()
             Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(Radius.md))
                 .background(TerracottaPale), contentAlignment = Alignment.Center) {
-                Text(categoryEmojiForPreloved(item.category?.name), fontSize = 26.sp)
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = item.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(categoryEmojiForPreloved(item.category?.name), fontSize = 26.sp)
+                }
             }
             Spacer(Modifier.width(Spacing.md))
             Column(modifier = Modifier.weight(1f)) {
@@ -300,9 +369,23 @@ private fun PrelovedSayaCard(
                         Text("🗑 Hapus", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily,
                             fontWeight = FontWeight.Medium)
                     }
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                        .clickable(enabled = !isActionLoading && !isEditLoading) { onEdit() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center) {
+                        if (isEditLoading) {
+                            CircularProgressIndicator(
+                                color = Gold, strokeWidth = 1.5.dp,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        } else {
+                            Text("✎ Edit", fontSize = 11.sp, color = Gold, fontFamily = DmSansFamily,
+                                fontWeight = FontWeight.Medium)
+                        }
+                    }
                     if (isAvailable && onMarkSold != null) {
                         Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Terracotta)
-                            .clickable(enabled = !isActionLoading) { onMarkSold() }
+                            .clickable(enabled = !isActionLoading) { showSoldDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center) {
                             if (isActionLoading) {
@@ -311,6 +394,14 @@ private fun PrelovedSayaCard(
                                 Text("✓ Tandai Terjual", fontSize = 11.sp, color = Cream,
                                     fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                             }
+                        }
+                    }
+                    if (onBuka != null) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                            .clickable(enabled = !isActionLoading) { showReopenDialog = true }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)) {
+                            Text("Buka Lagi", fontSize = 11.sp, color = Cream,
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -325,6 +416,24 @@ private fun PrelovedSayaCard(
             onDismiss = { showDeleteDialog = false }
         )
     }
+    if (showSoldDialog && onMarkSold != null) {
+        SayaDeleteDialog(
+            title = "Tandai Terjual?",
+            message = "Barang ini akan masuk arsip dan tidak tampil sebagai barang tersedia.",
+            confirmLabel = "Tandai",
+            onConfirm = { showSoldDialog = false; onMarkSold() },
+            onDismiss = { showSoldDialog = false }
+        )
+    }
+    if (showReopenDialog && onBuka != null) {
+        SayaDeleteDialog(
+            title = "Buka Lagi Barang?",
+            message = "Barang ini akan tersedia lagi jika limit aktif kamu masih tersedia.",
+            confirmLabel = "Buka Lagi",
+            onConfirm = { showReopenDialog = false; onBuka() },
+            onDismiss = { showReopenDialog = false }
+        )
+    }
 }
 
 // ── PRELOVED REQUEST CARD ─────────────────────────────────────────
@@ -333,10 +442,14 @@ private fun PrelovedRequestSayaCard(
     request: PrelovedRequestDto,
     isActionLoading: Boolean,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onTutup: (() -> Unit)?,
+    onBuka: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCloseDialog by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
     val isOpen = request.status == "OPEN"
 
     Card(
@@ -391,9 +504,15 @@ private fun PrelovedRequestSayaCard(
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
                         fontWeight = FontWeight.Medium)
                 }
+                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                    .clickable(enabled = !isActionLoading) { onEdit() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Medium)
+                }
                 if (onTutup != null && isOpen) {
                     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
-                        .clickable(enabled = !isActionLoading) { onTutup() }
+                        .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
                         if (isActionLoading) {
@@ -402,6 +521,14 @@ private fun PrelovedRequestSayaCard(
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
                                 fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                         }
+                    }
+                }
+                if (onBuka != null) {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                        .clickable(enabled = !isActionLoading) { showReopenDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text("Buka Lagi", fontSize = 12.sp, color = Cream,
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -413,6 +540,24 @@ private fun PrelovedRequestSayaCard(
             message = "Pencarian \"${request.title}\" akan dihapus permanen.",
             onConfirm = { showDeleteDialog = false; onHapus() },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+    if (showCloseDialog && onTutup != null) {
+        SayaDeleteDialog(
+            title = "Tutup Pencarian?",
+            message = "Pencarian ini akan masuk arsip dan tidak tampil sebagai pencarian aktif.",
+            confirmLabel = "Tutup",
+            onConfirm = { showCloseDialog = false; onTutup() },
+            onDismiss = { showCloseDialog = false }
+        )
+    }
+    if (showReopenDialog && onBuka != null) {
+        SayaDeleteDialog(
+            title = "Buka Lagi Pencarian?",
+            message = "Pencarian ini akan aktif lagi jika limit aktif kamu masih tersedia.",
+            confirmLabel = "Buka Lagi",
+            onConfirm = { showReopenDialog = false; onBuka() },
+            onDismiss = { showReopenDialog = false }
         )
     }
 }

@@ -38,6 +38,7 @@ sealed class JastipActionState {
     object Loading : JastipActionState()
     data class Success(val data: JastipDto? = null) : JastipActionState()
     data class Error(val message: String) : JastipActionState()
+    data class LimitReached(val message: String) : JastipActionState()
 }
 
 @HiltViewModel
@@ -183,9 +184,78 @@ class JastipViewModel @Inject constructor(
     fun updateStatus(id: String, status: String) {
         viewModelScope.launch {
             _actionState.value = JastipActionState.Loading
-            _actionState.value = when (val result = repository.updateStatus(id, status)) {
+            val result = repository.updateStatus(id, status)
+            _actionState.value = when (result) {
+                is Result.Success -> JastipActionState.Success(result.data)
+                is Result.Error   -> {
+                    // BE return 400 with specific message for limit reached
+                    if (result.message.contains("maximum", ignoreCase = true) ||
+                        result.message.contains("active", ignoreCase = true)) {
+                        JastipActionState.LimitReached(result.message)
+                    } else {
+                        JastipActionState.Error(result.message)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Edit isi listing (title, lokasi, deadline, catatan). Tidak mengubah images. */
+    fun updateJastip(
+        id: String,
+        title: String,
+        fromLocation: String,
+        toLocation: String,
+        deadline: String,
+        notes: String?,
+        categoryId: Int? = null,
+        imageUris: List<Uri> = emptyList(),
+        existingImageUrls: List<String> = emptyList()
+    ) {
+        viewModelScope.launch {
+            _actionState.value = JastipActionState.Loading
+            val uploadedUrls = imageUris.map { uri ->
+                async { uploadRepository.uploadImage(uri) }
+            }.awaitAll().mapNotNull { result ->
+                (result as? Result.Success)?.data
+            }
+            val allUrls = existingImageUrls + uploadedUrls
+            val request = UpdateJastipListingRequest(
+                categoryId   = categoryId,
+                title        = title,
+                notes        = notes,
+                fromLocation = fromLocation,
+                toLocation   = toLocation,
+                deadline     = deadline,
+                primaryImageUrl = allUrls.firstOrNull(),
+                images = allUrls.takeIf { it.isNotEmpty() }
+            )
+            _actionState.value = when (val result = repository.updateJastip(id, request)) {
                 is Result.Success -> JastipActionState.Success(result.data)
                 is Result.Error   -> JastipActionState.Error(result.message)
+            }
+        }
+    }
+
+    /** Update status + deadline sekaligus (untuk reopen CLOSED -> ACTIVE). */
+    fun reopenJastip(id: String, newDeadline: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipActionState.Loading
+            val request = UpdateJastipListingRequest(
+                status   = "ACTIVE",
+                deadline = newDeadline
+            )
+            val result = repository.updateJastip(id, request)
+            _actionState.value = when (result) {
+                is Result.Success -> JastipActionState.Success(result.data)
+                is Result.Error   -> {
+                    if (result.message.contains("maximum", ignoreCase = true) ||
+                        result.message.contains("active", ignoreCase = true)) {
+                        JastipActionState.LimitReached(result.message)
+                    } else {
+                        JastipActionState.Error(result.message)
+                    }
+                }
             }
         }
     }

@@ -30,6 +30,7 @@ sealed class PrelovedActionState {
     object Loading : PrelovedActionState()
     data class Success(val data: PrelovedDto? = null) : PrelovedActionState()
     data class Error(val message: String) : PrelovedActionState()
+    data class LimitReached(val message: String) : PrelovedActionState()
 }
 
 sealed class PrelovedCategoryState {
@@ -168,9 +169,52 @@ class PrelovedViewModel @Inject constructor(
     fun updateStatus(id: String, status: String) {
         viewModelScope.launch {
             _actionState.value = PrelovedActionState.Loading
-            _actionState.value = when (val result = repository.updateStatus(id, status)) {
+            val result = repository.updateStatus(id, status)
+            _actionState.value = when (result) {
                 is Result.Success -> PrelovedActionState.Success(result.data)
-                is Result.Error -> PrelovedActionState.Error(result.message)
+                is Result.Error   -> {
+                    if (result.message.contains("maximum", ignoreCase = true) ||
+                        result.message.contains("active", ignoreCase = true)) {
+                        PrelovedActionState.LimitReached(result.message)
+                    } else {
+                        PrelovedActionState.Error(result.message)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Edit barang preloved: title, price, condition, description. */
+    fun updatePreloved(
+        id: String,
+        title: String,
+        price: Int,
+        condition: String,
+        description: String?,
+        categoryId: Int? = null,
+        imageUris: List<Uri> = emptyList(),
+        existingImageUrls: List<String> = emptyList()
+    ) {
+        viewModelScope.launch {
+            _actionState.value = PrelovedActionState.Loading
+            val uploadedUrls = imageUris.map { uri ->
+                async { uploadRepository.uploadImage(uri) }
+            }.awaitAll().mapNotNull { result ->
+                (result as? Result.Success)?.data
+            }
+            val allUrls = existingImageUrls + uploadedUrls
+            val request = UpdatePrelovedListingRequest(
+                categoryId  = categoryId,
+                title       = title,
+                price       = price,
+                condition   = condition,
+                description = description,
+                primaryImageUrl = allUrls.firstOrNull(),
+                images = allUrls.takeIf { it.isNotEmpty() }
+            )
+            _actionState.value = when (val result = repository.updatePreloved(id, request)) {
+                is Result.Success -> PrelovedActionState.Success(result.data)
+                is Result.Error   -> PrelovedActionState.Error(result.message)
             }
         }
     }

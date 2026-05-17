@@ -20,13 +20,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.titipin.app.shared.ImageItem
 import com.titipin.app.shared.ListingImagePickerRow
 import com.titipin.app.ui.auth.TitipinTextField
+import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.theme.*
 import java.util.Calendar
 
@@ -37,18 +37,18 @@ fun JastipFormContent(
 ) {
     val context = LocalContext.current
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val isLoading = actionState is JastipActionState.Loading
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
 
     var title by remember { mutableStateOf("") }
     var fromLocation by remember { mutableStateOf("") }
     var toLocation   by remember { mutableStateOf("") }
     var notes        by remember { mutableStateOf("") }
     var imageItems   by remember { mutableStateOf<List<ImageItem>>(emptyList()) }
-    var latitudeStr  by remember { mutableStateOf("-7.9358") }
-    var longitudeStr by remember { mutableStateOf("112.6139") }
 
-    // Deadline — simpan terpisah biar enak diformatkan
+    // Batas Nitip — simpan terpisah biar enak diformatkan
     val now = Calendar.getInstance()
     var selectedDate by remember { mutableStateOf("") }   // "2026-03-20"
     var selectedTime by remember { mutableStateOf("") }   // "14:00"
@@ -148,6 +148,24 @@ fun JastipFormContent(
                 isFocused = title.isNotEmpty()
             )
 
+            if (categoryState is JastipCategoryState.Success) {
+                Text(
+                    text = "🏷️ KATEGORI",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    color = Charcoal60,
+                    fontFamily = DmSansFamily
+                )
+                CategoryChipRow(
+                    categories = (categoryState as JastipCategoryState.Success).data,
+                    selectedCategoryId = selectedCategoryId,
+                    onCategorySelected = { selectedCategoryId = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    includeAllChip = false
+                )
+            }
+
             TitipinTextField(
                 value = fromLocation, onValueChange = { fromLocation = it },
                 label = "📍 DARI",
@@ -162,10 +180,10 @@ fun JastipFormContent(
                 isFocused = toLocation.isNotEmpty()
             )
 
-            // ── DEADLINE — tap to pick date + time ────────────────
+            // ── BATAS NITIP — tap to pick date + time ────────────────
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "📅 DEADLINE",
+                    text = "📅 BATAS NITIP",
                     fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp, color = Charcoal60, fontFamily = DmSansFamily,
                     modifier = Modifier.padding(bottom = 4.dp)
@@ -221,27 +239,6 @@ fun JastipFormContent(
                 onRemove = { idx ->
                     imageItems = imageItems.toMutableList().also { it.removeAt(idx) }
                 }
-            )
-
-            // ── KOORDINAT ─────────────────────────────────────────
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
-                TitipinTextField(
-                    value = latitudeStr, onValueChange = { latitudeStr = it },
-                    label = "📌 LATITUDE", placeholder = "-7.9358",
-                    isFocused = true, keyboardType = KeyboardType.Decimal,
-                    modifier = Modifier.weight(1f)
-                )
-                TitipinTextField(
-                    value = longitudeStr, onValueChange = { longitudeStr = it },
-                    label = "📌 LONGITUDE", placeholder = "112.6139",
-                    isFocused = true, keyboardType = KeyboardType.Decimal,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text(
-                text = "💡 Default pusat Malang",
-                fontSize = 10.sp, color = Charcoal30, fontFamily = DmSansFamily,
-                modifier = Modifier.padding(start = 4.dp)
             )
 
             // ── CATATAN ───────────────────────────────────────────
@@ -334,10 +331,11 @@ fun JastipFormContent(
                     fromLocation = fromLocation,
                     toLocation   = toLocation,
                     deadline     = deadlineFormatted,
-                    latitude     = latitudeStr.toDoubleOrNull() ?: -7.9358,
-                    longitude    = longitudeStr.toDoubleOrNull() ?: 112.6139,
+                    latitude     = null,
+                    longitude    = null,
                     notes        = notes.ifEmpty { null },
-                    imageUris    = imageItems.filterIsInstance<ImageItem.Local>().map { it.uri }
+                    imageUris    = imageItems.filterIsInstance<ImageItem.Local>().map { it.uri },
+                    categoryId   = selectedCategoryId
                 )
             },
             onDismiss = { showConfirmDialog = false }
@@ -406,7 +404,7 @@ fun JastipConfirmDialog(
             ) {
                 JastipConfirmRow("Dari",     fromLocation)
                 JastipConfirmRow("Ke",       toLocation)
-                JastipConfirmRow("Deadline", deadline)
+                JastipConfirmRow("Batas Nitip", deadline)
             }
         },
         confirmButton = {

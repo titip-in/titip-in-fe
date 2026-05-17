@@ -46,8 +46,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.shared.formatDateDisplay
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageTakeRequest
+import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.StatusBadge
 import com.titipin.app.ui.components.UserContactPanel
+import com.titipin.app.ui.components.SupportPanel
 import com.titipin.app.ui.theme.Charcoal
 import com.titipin.app.ui.theme.Charcoal10
 import com.titipin.app.ui.theme.Charcoal60
@@ -69,8 +71,12 @@ fun JastipRequestDetailScreen(
 ) {
     val detailState by viewModel.detailState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val categoryState by viewModel.categoryState.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val context = LocalContext.current
+
+    var limitReachedMsg by remember { mutableStateOf<String?>(null) }
+    var showEditSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(requestId) { viewModel.loadDetail(requestId) }
     LaunchedEffect(actionState) {
@@ -81,8 +87,13 @@ fun JastipRequestDetailScreen(
                     onBack()
                     return@LaunchedEffect
                 }
+                showEditSheet = false
                 viewModel.resetActionState()
                 viewModel.loadDetail(requestId)
+            }
+            is RequestActionState.LimitReached -> {
+                limitReachedMsg = (actionState as RequestActionState.LimitReached).message
+                viewModel.resetActionState()
             }
             else -> Unit
         }
@@ -121,12 +132,13 @@ fun JastipRequestDetailScreen(
                     CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp)
                 }
             }
-            is RequestActionState.Error -> {
+            is RequestActionState.Error, is RequestActionState.LimitReached -> {
+                val errorMsg = if (state is RequestActionState.Error) state.message else (state as RequestActionState.LimitReached).message
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("😕", fontSize = 40.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text(state.message, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
+                        Text(errorMsg, color = Charcoal60, fontFamily = DmSansFamily, fontSize = 13.sp)
                         Spacer(Modifier.height(12.dp))
                         TextButton(onClick = onBack) {
                             Text("Kembali", color = Terracotta, fontFamily = DmSansFamily)
@@ -247,18 +259,23 @@ fun JastipRequestDetailScreen(
 
                     if (isOwner) {
                         Spacer(Modifier.height(Spacing.sm))
-                        RequestOwnerPanel(
+                        OwnerPanel(
                             status = request.status,
                             isLoading = actionState is RequestActionState.Loading,
                             onToggleStatus = {
                                 val nextStatus = if (request.status == "OPEN") "CLOSED" else "OPEN"
                                 viewModel.updateStatus(request.id, nextStatus)
                             },
+                            onEdit = { showEditSheet = true },
                             onDelete = { viewModel.deleteRequest(request.id) }
                         )
                     }
 
                     Spacer(Modifier.height(Spacing.xl))
+
+                    SupportPanel()
+
+                    Spacer(Modifier.height(100.dp))
                 }
 
                 HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
@@ -292,16 +309,39 @@ fun JastipRequestDetailScreen(
             }
         }
     }
+
+    if (limitReachedMsg != null) {
+        LimitReachedDialog(
+            message = limitReachedMsg.orEmpty(),
+            onDismiss = { limitReachedMsg = null }
+        )
+    }
+
+    if (showEditSheet && detailState is RequestActionState.Success) {
+        val request = (detailState as RequestActionState.Success).data
+        if (request != null) {
+            EditRequestSheet(
+                item = request,
+                categories = (categoryState as? RequestCategoryState.Success)?.data.orEmpty(),
+                onDismiss = { showEditSheet = false },
+                onSubmit = { title, fromLoc, toLoc, notes, categoryId ->
+                    viewModel.updateRequestFields(request.id, title, fromLoc, toLoc, notes, categoryId)
+                }
+            )
+        }
+    }
 }
 
 @Composable
-private fun RequestOwnerPanel(
+private fun OwnerPanel(
     status: String,
     isLoading: Boolean,
     onToggleStatus: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showStatusConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -321,7 +361,7 @@ private fun RequestOwnerPanel(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = onToggleStatus,
+                onClick = { showStatusConfirm = true },
                 enabled = !isLoading,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(Radius.full),
@@ -335,6 +375,14 @@ private fun RequestOwnerPanel(
                 )
             }
             OutlinedButton(
+                onClick = onEdit,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(Radius.full)
+            ) {
+                Text("Edit", fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal)
+            }
+            OutlinedButton(
                 onClick = { showDeleteConfirm = true },
                 enabled = !isLoading,
                 modifier = Modifier.weight(1f),
@@ -343,6 +391,27 @@ private fun RequestOwnerPanel(
                 Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
             }
         }
+    }
+
+    if (showStatusConfirm) {
+        val isReopen = status == "CLOSED"
+        AlertDialog(
+            onDismissRequest = { showStatusConfirm = false },
+            containerColor = Cream,
+            title = { Text("Ubah Status?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text(if (isReopen) "Buka kembali request Jastip ini?" else "Tutup request Jastip ini?", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStatusConfirm = false
+                    onToggleStatus()
+                }) {
+                    Text("Ya, Lanjutkan", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusConfirm = false }) { Text("Batal", color = Charcoal60, fontFamily = DmSansFamily) }
+            }
+        )
     }
 
     if (showDeleteConfirm) {

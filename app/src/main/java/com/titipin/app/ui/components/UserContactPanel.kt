@@ -68,11 +68,20 @@ fun UserContactPanel(
                 fontFamily = DmSansFamily
             )
             Text(
-                text = if (isOwner) ownerLabel else status?.takeIf { it.isNotBlank() } ?: "Pengguna Titip.in",
+                text = status?.takeIf { it.isNotBlank() }
+                    ?: if (isOwner) ownerLabel else "Pengguna Titip.in",
                 fontSize = 11.sp,
                 color = Charcoal60,
                 fontFamily = DmSansFamily
             )
+            if (isOwner && !status.isNullOrBlank()) {
+                Text(
+                    text = ownerLabel,
+                    fontSize = 10.sp,
+                    color = Terracotta,
+                    fontFamily = DmSansFamily
+                )
+            }
         }
 
         if (!isOwner && !waNumber.isNullOrBlank()) {

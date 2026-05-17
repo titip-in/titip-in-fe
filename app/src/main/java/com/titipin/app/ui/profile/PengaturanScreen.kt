@@ -1,5 +1,8 @@
 package com.titipin.app.ui.profile
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -24,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -40,6 +45,10 @@ fun PengaturanScreen(
 
     var showEditProfileSheet by remember { mutableStateOf(false) }
     var showEditWaSheet      by remember { mutableStateOf(false) }
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri -> if (uri != null) viewModel.uploadAvatar(uri) }
+    )
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -138,9 +147,18 @@ fun PengaturanScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(initials, fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold, color = Color.White,
-                                        fontFamily = DmSansFamily)
+                                    if (!user.avatarUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = user.avatarUrl,
+                                            contentDescription = "Foto profil",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Text(initials, fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold, color = Color.White,
+                                            fontFamily = DmSansFamily)
+                                    }
                                 }
                                 Column {
                                     Text(user.name.trim(), fontSize = 16.sp,
@@ -158,6 +176,17 @@ fun PengaturanScreen(
                             label   = "Edit Profil",
                             subtitle = "Ubah nama dan status profil",
                             onClick = { showEditProfileSheet = true }
+                        )
+
+                        PengaturanMenuItem(
+                            emoji   = "🖼️",
+                            label   = "Edit Foto Profil",
+                            subtitle = if (user.avatarUrl.isNullOrBlank()) "Tambahkan foto agar profil lebih jelas" else "Ganti foto profil akun",
+                            onClick = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
                         )
 
                         // No. WhatsApp

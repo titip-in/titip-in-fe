@@ -40,6 +40,8 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showGoogleDialog by remember { mutableStateOf(false) }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     val authState by viewModel.authState.collectAsState()
     val isLoading = authState is AuthState.Loading
@@ -155,6 +157,16 @@ fun LoginScreen(
                 }
             )
 
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                Text(
+                    text = "Lupa Password?",
+                    fontSize = 11.sp,
+                    color = Terracotta,
+                    fontFamily = DmSansFamily,
+                    modifier = Modifier.clickable { showForgotPasswordDialog = true }
+                )
+            }
+
             if (authState is AuthState.Error) {
                 Text(
                     text = "⚠ ${(authState as AuthState.Error).message}",
@@ -210,7 +222,7 @@ fun LoginScreen(
             }
 
             OutlinedButton(
-                onClick = { /* TODO: Google Sign In */ },
+                onClick = { showGoogleDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(ComponentSize.buttonHeight),
@@ -248,6 +260,34 @@ fun LoginScreen(
                 )
             }
         }
+    }
+
+    if (showGoogleDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoogleDialog = false },
+            title = { Text("Dalam Pengembangan", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Login via Google sedang dalam pengembangan. Silakan gunakan Email / No. HP untuk saat ini.", fontFamily = DmSansFamily, color = Charcoal60) },
+            confirmButton = {
+                TextButton(onClick = { showGoogleDialog = false }) {
+                    Text("OK", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            containerColor = Cream
+        )
+    }
+
+    if (showForgotPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { showForgotPasswordDialog = false },
+            title = { Text("Lupa Password?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Untuk mereset password, silakan hubungi tim support kami melalui email di support@titipin.me.", fontFamily = DmSansFamily, color = Charcoal60) },
+            confirmButton = {
+                TextButton(onClick = { showForgotPasswordDialog = false }) {
+                    Text("Tutup", color = Charcoal, fontFamily = DmSansFamily)
+                }
+            },
+            containerColor = Cream
+        )
     }
 }
 

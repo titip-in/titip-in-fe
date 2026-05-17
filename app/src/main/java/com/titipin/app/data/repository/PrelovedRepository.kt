@@ -35,6 +35,19 @@ class PrelovedRepository @Inject constructor(
         }
     }
 
+    suspend fun searchPreloved(query: String): Result<List<PrelovedDto>> {
+        return try {
+            val response = apiService.searchPreloved(query)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()?.data?.data.orEmpty())
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mencari preloved")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
     suspend fun createPreloved(request: CreatePrelovedRequest): Result<PrelovedDto> {
         return try {
             val response = apiService.createPreloved(request)
@@ -54,7 +67,20 @@ class PrelovedRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.error?.message ?: "Gagal update status")
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal update status")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server")
+        }
+    }
+
+    suspend fun updatePreloved(id: String, request: UpdatePrelovedListingRequest): Result<PrelovedDto> {
+        return try {
+            val response = apiService.updatePreloved(id, request)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(response.body()!!.data!!)
+            } else {
+                Result.Error(response.body()?.message ?: response.body()?.error?.message ?: "Gagal mengubah barang")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")

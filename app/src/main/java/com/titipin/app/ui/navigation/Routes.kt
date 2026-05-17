@@ -7,6 +7,7 @@ object Routes {
     const val ONBOARDING  = "onboarding"
     const val LOGIN       = "login"
     const val REGISTER    = "register"
+    const val SETUP_PROFILE = "setup_profile"
     const val HOME        = "home"
     const val JASTIP      = "jastip"
     const val PRELOVED    = "preloved"

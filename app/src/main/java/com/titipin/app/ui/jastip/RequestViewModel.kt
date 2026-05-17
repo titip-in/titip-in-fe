@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.CategoryDto
 import com.titipin.app.data.model.RequestDto
+import com.titipin.app.data.model.UpdateRequestBody
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
@@ -28,6 +29,7 @@ sealed class RequestActionState {
     data class Success(val data: RequestDto? = null) : RequestActionState()
     object FeatureInProgress : RequestActionState()
     data class Error(val message: String) : RequestActionState()
+    data class LimitReached(val message: String) : RequestActionState()
 }
 
 sealed class RequestCategoryState {
@@ -144,9 +146,42 @@ class RequestViewModel @Inject constructor(
     fun updateStatus(id: String, status: String) {
         viewModelScope.launch {
             _actionState.value = RequestActionState.Loading
-            _actionState.value = when (val result = repository.updateRequestStatus(id, status)) {
+            val result = repository.updateRequestStatus(id, status)
+            _actionState.value = when (result) {
                 is Result.Success -> RequestActionState.Success(result.data)
-                is Result.Error -> RequestActionState.Error(result.message)
+                is Result.Error   -> {
+                    if (result.message.contains("maximum", ignoreCase = true) ||
+                        result.message.contains("active", ignoreCase = true)) {
+                        RequestActionState.LimitReached(result.message)
+                    } else {
+                        RequestActionState.Error(result.message)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Edit jastip request fields (title, lokasi, catatan). */
+    fun updateRequestFields(
+        id: String,
+        title: String,
+        fromLocation: String,
+        toLocation: String,
+        notes: String?,
+        categoryId: Int? = null
+    ) {
+        viewModelScope.launch {
+            _actionState.value = RequestActionState.Loading
+            val body = UpdateRequestBody(
+                categoryId   = categoryId,
+                title        = title,
+                notes        = notes,
+                fromLocation = fromLocation,
+                toLocation   = toLocation
+            )
+            _actionState.value = when (val result = repository.updateRequest(id, body)) {
+                is Result.Success -> RequestActionState.Success(result.data)
+                is Result.Error   -> RequestActionState.Error(result.message)
             }
         }
     }
