@@ -92,9 +92,16 @@ class ProfileViewModel @Inject constructor(
             _isUploadingAvatar.value = true
             when (val uploadResult = uploadRepository.uploadImage(uri)) {
                 is Result.Success -> {
-                    when (val updateResult = authRepository.updateProfile(avatarUrl = uploadResult.data)) {
+                    val currentUser = (_uiState.value as? ProfileUiState.Success)?.user
+                    val currentUsage = (_uiState.value as? ProfileUiState.Success)?.usage ?: ProfileUsage()
+                    when (val updateResult = authRepository.updateProfile(
+                        name = currentUser?.name,
+                        waNumber = currentUser?.waNumber,
+                        status = currentUser?.status,
+                        avatarUrl = uploadResult.data
+                    )) {
                         is Result.Success -> {
-                            _uiState.value = ProfileUiState.Success(updateResult.data)
+                            _uiState.value = ProfileUiState.Success(updateResult.data, currentUsage)
                         }
                         is Result.Error -> {
                             _uiState.value = ProfileUiState.Error(updateResult.message)
@@ -109,18 +116,84 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun updateProfile(status: String? = null, avatarUrl: String? = null) {
+    fun updateProfile(
+        name: String? = null,
+        waNumber: String? = null,
+        status: String? = null,
+        avatarUrl: String? = null
+    ) {
         viewModelScope.launch {
             _isUpdatingProfile.value = true
-            when (val updateResult = authRepository.updateProfile(status = status, avatarUrl = avatarUrl)) {
-                is Result.Success -> {
-                    _uiState.value = ProfileUiState.Success(updateResult.data)
-                }
-                is Result.Error -> {
-                    _uiState.value = ProfileUiState.Error(updateResult.message)
-                }
+            val currentUser = (_uiState.value as? ProfileUiState.Success)?.user
+            val currentUsage = (_uiState.value as? ProfileUiState.Success)?.usage ?: ProfileUsage()
+            when (val updateResult = authRepository.updateProfile(
+                name = name ?: currentUser?.name,
+                waNumber = waNumber ?: currentUser?.waNumber,
+                status = status ?: currentUser?.status,
+                avatarUrl = avatarUrl ?: currentUser?.avatarUrl
+            )) {
+                is Result.Success -> _uiState.value = ProfileUiState.Success(updateResult.data, currentUsage)
+                is Result.Error -> _uiState.value = ProfileUiState.Error(updateResult.message)
             }
             _isUpdatingProfile.value = false
+        }
+    }
+
+    fun requestWaOtp(onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            when (val result = authRepository.requestWaOtp()) {
+                is Result.Success -> onComplete(true, "OTP WhatsApp sudah dikirim")
+                is Result.Error -> onComplete(false, result.message)
+            }
+        }
+    }
+
+    fun requestWaOtpForNumber(waNumber: String, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            _isUpdatingProfile.value = true
+            val currentUser = (_uiState.value as? ProfileUiState.Success)?.user
+            val currentUsage = (_uiState.value as? ProfileUiState.Success)?.usage ?: ProfileUsage()
+            val updateResult = authRepository.updateProfile(
+                name = currentUser?.name,
+                waNumber = waNumber,
+                status = currentUser?.status,
+                avatarUrl = currentUser?.avatarUrl
+            )
+            _isUpdatingProfile.value = false
+            if (updateResult is Result.Error) {
+                onComplete(false, updateResult.message)
+                return@launch
+            }
+            if (updateResult is Result.Success) {
+                _uiState.value = ProfileUiState.Success(updateResult.data, currentUsage)
+            }
+            when (val otpResult = authRepository.requestWaOtp()) {
+                is Result.Success -> onComplete(true, "OTP WhatsApp sudah dikirim")
+                is Result.Error -> onComplete(false, otpResult.message)
+            }
+        }
+    }
+
+    fun verifyWaOtp(otp: String, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            when (val result = authRepository.verifyWaOtp(otp)) {
+                is Result.Success -> {
+                    result.data?.let { user ->
+                        _uiState.value = ProfileUiState.Success(user)
+                    } ?: loadProfile()
+                    onComplete(true, "Nomor WhatsApp berhasil diverifikasi")
+                }
+                is Result.Error -> onComplete(false, result.message)
+            }
+        }
+    }
+
+    fun resendEmailVerification(onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            when (val result = authRepository.resendEmailVerification()) {
+                is Result.Success -> onComplete(true, "Email verifikasi sudah dikirim ulang")
+                is Result.Error -> onComplete(false, result.message)
+            }
         }
     }
 }

@@ -35,6 +35,7 @@ import com.titipin.app.ui.theme.*
 fun LoginScreen(
     onNavigateToRegister: () -> Unit = {},
     onLoginSuccess: () -> Unit = {},
+    onSetupRequired: () -> Unit = {},
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -42,6 +43,7 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var showGoogleDialog by remember { mutableStateOf(false) }
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var forgotPasswordEmail by remember { mutableStateOf("") }
 
     val authState by viewModel.authState.collectAsState()
     val isLoading = authState is AuthState.Loading
@@ -49,8 +51,16 @@ fun LoginScreen(
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
+                val user = (authState as AuthState.Success).auth.user
                 viewModel.resetState()
-                onLoginSuccess()
+                if (user.emailVerifiedAt.isNullOrBlank() || user.waVerifiedAt.isNullOrBlank()) {
+                    onSetupRequired()
+                } else {
+                    onLoginSuccess()
+                }
+            }
+            is AuthState.PasswordResetSent -> {
+                showForgotPasswordDialog = true
             }
             else -> Unit
         }
@@ -277,13 +287,70 @@ fun LoginScreen(
     }
 
     if (showForgotPasswordDialog) {
+        val resetSentMessage = (authState as? AuthState.PasswordResetSent)?.message
+        val errorMessage = (authState as? AuthState.Error)?.message
         AlertDialog(
-            onDismissRequest = { showForgotPasswordDialog = false },
+            onDismissRequest = {
+                showForgotPasswordDialog = false
+                forgotPasswordEmail = ""
+                viewModel.resetState()
+            },
             title = { Text("Lupa Password?", fontFamily = FrauncesFamily, color = Charcoal) },
-            text = { Text("Untuk mereset password, silakan hubungi tim support kami melalui email di support@titipin.me.", fontFamily = DmSansFamily, color = Charcoal60) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "Masukkan email akunmu. Kalau email terdaftar, link reset password akan dikirim ke inbox.",
+                        fontFamily = DmSansFamily,
+                        color = Charcoal60
+                    )
+                    OutlinedTextField(
+                        value = forgotPasswordEmail,
+                        onValueChange = { forgotPasswordEmail = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("email@example.com", fontFamily = DmSansFamily) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        shape = RoundedCornerShape(Radius.md),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Terracotta,
+                            unfocusedBorderColor = Charcoal10,
+                            cursorColor = Terracotta
+                        )
+                    )
+                    if (resetSentMessage != null) {
+                        Text(resetSentMessage, fontSize = 12.sp, color = Sage, fontFamily = DmSansFamily)
+                    } else if (errorMessage != null) {
+                        Text(errorMessage, fontSize = 12.sp, color = Terracotta, fontFamily = DmSansFamily)
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(onClick = { showForgotPasswordDialog = false }) {
-                    Text("Tutup", color = Charcoal, fontFamily = DmSansFamily)
+                TextButton(
+                    onClick = {
+                        if (resetSentMessage != null) {
+                            showForgotPasswordDialog = false
+                            forgotPasswordEmail = ""
+                            viewModel.resetState()
+                        } else {
+                            viewModel.forgotPassword(forgotPasswordEmail.trim())
+                        }
+                    },
+                    enabled = resetSentMessage != null || (forgotPasswordEmail.isNotBlank() && !isLoading)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Terracotta, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    } else {
+                        Text(if (resetSentMessage != null) "Tutup" else "Kirim Link", color = Terracotta, fontFamily = DmSansFamily)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showForgotPasswordDialog = false
+                    forgotPasswordEmail = ""
+                    viewModel.resetState()
+                }) {
+                    Text("Batal", color = Charcoal, fontFamily = DmSansFamily)
                 }
             },
             containerColor = Cream

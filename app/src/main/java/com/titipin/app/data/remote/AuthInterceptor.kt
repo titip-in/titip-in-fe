@@ -37,6 +37,13 @@ class AuthInterceptor @Inject constructor(
             .header("Authorization", "Bearer $token")
             .build()
 
-        return chain.proceed(authenticatedRequest)
+        val response = chain.proceed(authenticatedRequest)
+        if (response.code == 401) {
+            runBlocking {
+                dataStore.expireSession("Sesi berakhir karena password berubah. Silakan login lagi.")
+            }
+        }
+
+        return response
     }
 }

@@ -25,7 +25,7 @@ sealed class PengaturanUiState {
 sealed class PengaturanActionState {
     object Idle : PengaturanActionState()
     object Loading : PengaturanActionState()
-    object Success : PengaturanActionState()
+    data class Success(val message: String = "Profil berhasil diperbarui") : PengaturanActionState()
     data class Error(val message: String) : PengaturanActionState()
 }
 
@@ -72,10 +72,16 @@ class PengaturanViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _actionState.value = PengaturanActionState.Loading
-            when (val result = authRepository.updateProfile(name, waNumber, status, avatarUrl)) {
+            val currentUser = (_uiState.value as? PengaturanUiState.Ready)?.user
+            when (val result = authRepository.updateProfile(
+                name = name ?: currentUser?.name,
+                waNumber = waNumber ?: currentUser?.waNumber,
+                status = status ?: currentUser?.status,
+                avatarUrl = avatarUrl ?: currentUser?.avatarUrl
+            )) {
                 is Result.Success -> {
                     _uiState.value = PengaturanUiState.Ready(result.data)
-                    _actionState.value = PengaturanActionState.Success
+                    _actionState.value = PengaturanActionState.Success("Profil berhasil diperbarui")
                 }
                 is Result.Error -> {
                     _actionState.value = PengaturanActionState.Error(result.message)
@@ -89,15 +95,79 @@ class PengaturanViewModel @Inject constructor(
             _actionState.value = PengaturanActionState.Loading
             when (val uploadResult = uploadRepository.uploadImage(uri)) {
                 is Result.Success -> {
-                    when (val result = authRepository.updateProfile(avatarUrl = uploadResult.data)) {
+                    val currentUser = (_uiState.value as? PengaturanUiState.Ready)?.user
+                    when (val result = authRepository.updateProfile(
+                        name = currentUser?.name,
+                        waNumber = currentUser?.waNumber,
+                        status = currentUser?.status,
+                        avatarUrl = uploadResult.data
+                    )) {
                         is Result.Success -> {
                             _uiState.value = PengaturanUiState.Ready(result.data)
-                            _actionState.value = PengaturanActionState.Success
+                            _actionState.value = PengaturanActionState.Success("Foto profil berhasil diperbarui")
                         }
                         is Result.Error -> _actionState.value = PengaturanActionState.Error(result.message)
                     }
                 }
                 is Result.Error -> _actionState.value = PengaturanActionState.Error(uploadResult.message)
+            }
+        }
+    }
+
+    fun resendEmailVerification() {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            _actionState.value = when (val result = authRepository.resendEmailVerification()) {
+                is Result.Success -> PengaturanActionState.Success("Email verifikasi sudah dikirim ulang")
+                is Result.Error -> PengaturanActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun requestWaOtp() {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            _actionState.value = when (val result = authRepository.requestWaOtp()) {
+                is Result.Success -> PengaturanActionState.Success("OTP WhatsApp sudah dikirim")
+                is Result.Error -> PengaturanActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun verifyWaOtp(otp: String) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            when (val result = authRepository.verifyWaOtp(otp)) {
+                is Result.Success -> {
+                    val user = result.data
+                    if (user != null) {
+                        _uiState.value = PengaturanUiState.Ready(user)
+                    } else {
+                        loadUser()
+                    }
+                    _actionState.value = PengaturanActionState.Success("Nomor WhatsApp berhasil diverifikasi")
+                }
+                is Result.Error -> _actionState.value = PengaturanActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun changePassword(oldPassword: String, newPassword: String) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            _actionState.value = when (val result = authRepository.changePassword(oldPassword, newPassword)) {
+                is Result.Success -> PengaturanActionState.Success("Password berhasil diubah")
+                is Result.Error -> PengaturanActionState.Error(result.message)
+            }
+        }
+    }
+
+    fun requestPasswordReset(email: String) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            _actionState.value = when (val result = authRepository.forgotPassword(email)) {
+                is Result.Success -> PengaturanActionState.Success("Link reset password akan dikirim jika email terdaftar")
+                is Result.Error -> PengaturanActionState.Error(result.message)
             }
         }
     }

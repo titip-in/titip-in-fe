@@ -15,7 +15,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data ?: emptyList())
             } else {
-                Result.Error(response.body()?.message ?: "Gagal memuat data")
+                response.toResultError("Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -28,7 +28,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data?.data ?: emptyList())
             } else {
-                Result.Error(response.body()?.message ?: "Gagal memuat data")
+                response.toResultError("Gagal memuat data")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -41,7 +41,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: "Data tidak ditemukan")
+                response.toResultError("Data tidak ditemukan")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -66,7 +66,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: "Gagal membuat pencarian")
+                response.toResultError("Gagal membuat pencarian")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -82,7 +82,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(response.body()!!.data!!)
             } else {
-                Result.Error(response.body()?.message ?: "Gagal memperbarui")
+                response.toResultError("Gagal memperbarui")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")
@@ -100,7 +100,7 @@ class PrelovedRequestRepository @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.Success(Unit)
             } else {
-                Result.Error(response.body()?.message ?: "Gagal menghapus")
+                response.toResultError("Gagal menghapus")
             }
         } catch (e: Exception) {
             Result.Error("Tidak bisa terhubung ke server")

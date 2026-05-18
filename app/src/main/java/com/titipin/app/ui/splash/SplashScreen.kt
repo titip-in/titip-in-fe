@@ -17,6 +17,7 @@ fun SplashScreen(
     onNavigateToHome: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     onNavigateToOnboarding: () -> Unit = {},
+    onNavigateToSetupProfile: () -> Unit = {},
     viewModel: SplashViewModel = hiltViewModel()
 ) {
     val destination by viewModel.destination.collectAsState()
@@ -24,6 +25,7 @@ fun SplashScreen(
     LaunchedEffect(destination) {
         when (destination) {
             SplashDestination.Home        -> onNavigateToHome()
+            SplashDestination.SetupProfile -> onNavigateToSetupProfile()
             SplashDestination.Login       -> onNavigateToLogin()
             SplashDestination.Onboarding  -> onNavigateToOnboarding()
             SplashDestination.Loading     -> Unit

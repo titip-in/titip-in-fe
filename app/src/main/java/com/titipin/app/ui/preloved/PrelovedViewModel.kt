@@ -10,8 +10,6 @@ import com.titipin.app.data.repository.PrelovedRepository
 import com.titipin.app.data.repository.Result
 import com.titipin.app.data.repository.UploadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -137,10 +135,12 @@ class PrelovedViewModel @Inject constructor(
         viewModelScope.launch {
             _actionState.value = PrelovedActionState.Loading
 
-            val uploadedUrls = imageUris.map { uri ->
-                async { uploadRepository.uploadImage(uri) }
-            }.awaitAll().mapNotNull { result ->
-                (result as? Result.Success)?.data
+            val uploadedUrls = when (val uploadResult = uploadImageUris(imageUris)) {
+                is Result.Success -> uploadResult.data
+                is Result.Error -> {
+                    _actionState.value = PrelovedActionState.Error(uploadResult.message)
+                    return@launch
+                }
             }
 
             val allUrls = existingUrls + uploadedUrls
@@ -197,10 +197,12 @@ class PrelovedViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _actionState.value = PrelovedActionState.Loading
-            val uploadedUrls = imageUris.map { uri ->
-                async { uploadRepository.uploadImage(uri) }
-            }.awaitAll().mapNotNull { result ->
-                (result as? Result.Success)?.data
+            val uploadedUrls = when (val uploadResult = uploadImageUris(imageUris)) {
+                is Result.Success -> uploadResult.data
+                is Result.Error -> {
+                    _actionState.value = PrelovedActionState.Error(uploadResult.message)
+                    return@launch
+                }
             }
             val allUrls = existingImageUrls + uploadedUrls
             val request = UpdatePrelovedListingRequest(
@@ -227,6 +229,19 @@ class PrelovedViewModel @Inject constructor(
                 is Result.Error -> PrelovedActionState.Error(result.message)
             }
         }
+    }
+
+    private suspend fun uploadImageUris(imageUris: List<Uri>): Result<List<String>> {
+        val uploadedUrls = mutableListOf<String>()
+        imageUris.forEachIndexed { index, uri ->
+            when (val result = uploadRepository.uploadImage(uri)) {
+                is Result.Success -> uploadedUrls += result.data
+                is Result.Error -> return Result.Error(
+                    "Upload foto ${index + 1} gagal: ${result.message}"
+                )
+            }
+        }
+        return Result.Success(uploadedUrls)
     }
 
     fun resetActionState() { _actionState.value = PrelovedActionState.Idle }

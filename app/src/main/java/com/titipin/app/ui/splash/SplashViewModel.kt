@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SplashDestination { Loading, Onboarding, Home, Login }
+enum class SplashDestination { Loading, Onboarding, SetupProfile, Home, Login }
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
@@ -33,7 +33,13 @@ class SplashViewModel @Inject constructor(
 
             val token = dataStore.accessToken.first()
             _destination.value = if (!token.isNullOrEmpty()) {
-                SplashDestination.Home
+                val emailVerifiedAt = dataStore.userEmailVerifiedAt.first()
+                val waVerifiedAt = dataStore.userWaVerifiedAt.first()
+                if (emailVerifiedAt.isNullOrBlank() || waVerifiedAt.isNullOrBlank()) {
+                    SplashDestination.SetupProfile
+                } else {
+                    SplashDestination.Home
+                }
             } else {
                 SplashDestination.Login
             }
