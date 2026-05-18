@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
@@ -78,10 +79,14 @@ val routesWithoutBottomNav = listOf(
 )
 
 @Composable
-fun TitipinNavGraph() {
+fun TitipinNavGraph(
+    sessionViewModel: SessionViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val sessionMessage by sessionViewModel.sessionMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val showBottomNav = navBackStackEntry?.destination?.hierarchy?.none { dest ->
         dest.route in routesWithoutBottomNav
@@ -95,6 +100,16 @@ fun TitipinNavGraph() {
         } else {
             bottomNavVisible = false
         }
+    }
+
+    LaunchedEffect(sessionMessage) {
+        val message = sessionMessage ?: return@LaunchedEffect
+        navController.navigate(Routes.LOGIN) {
+            popUpTo(0) { inclusive = true }
+            launchSingleTop = true
+        }
+        snackbarHostState.showSnackbar(message)
+        sessionViewModel.consumeSessionMessage()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -332,6 +347,18 @@ fun TitipinNavGraph() {
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .navigationBarsPadding()
+            )
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) { data ->
+            Snackbar(
+                data,
+                containerColor = Charcoal,
+                contentColor = Cream,
+                actionColor = Terracotta,
+                shape = RoundedCornerShape(Radius.md)
             )
         }
     }

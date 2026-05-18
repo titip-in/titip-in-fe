@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,7 +32,16 @@ class UploadRepository @Inject constructor(
                 ?: return@withContext Result.Error("Gagal membaca file gambar")
 
             val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-            val part = MultipartBody.Part.createFormData("image", "upload.jpg", requestBody)
+            val extension = when (mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+            val part = MultipartBody.Part.createFormData(
+                "image",
+                "upload-${UUID.randomUUID()}.$extension",
+                requestBody
+            )
 
             val response = api.uploadImage(part)
             if (response.isSuccessful) {
@@ -39,7 +49,7 @@ class UploadRepository @Inject constructor(
                 if (url != null) Result.Success(url)
                 else Result.Error("Server tidak mengembalikan URL gambar")
             } else {
-                Result.Error("Upload gagal: ${response.code()} ${response.message()}")
+                response.toResultError("Upload gagal: ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Terjadi kesalahan saat upload")

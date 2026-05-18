@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -261,8 +262,23 @@ fun SetupProfileScreen(
 
     if (showOtpDialog) {
         AlertDialog(
-            onDismissRequest = { showOtpDialog = false },
-            title = { Text("Masukkan OTP", fontFamily = FrauncesFamily, color = Charcoal) },
+            onDismissRequest = {},
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Masukkan OTP", fontFamily = FrauncesFamily, color = Charcoal)
+                    IconButton(onClick = { showOtpDialog = false }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Tutup",
+                            tint = Charcoal
+                        )
+                    }
+                }
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text("Kode OTP dikirim ke WhatsApp kamu.", fontFamily = DmSansFamily, color = Charcoal60)

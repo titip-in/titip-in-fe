@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -693,13 +694,35 @@ private fun VerifyWaSheet(
     onVerify: (otp: String) -> Unit
 ) {
     var otp by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Cream) {
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = {},
+        sheetState = sheetState,
+        containerColor = Cream
+    ) {
         Column(
             modifier = Modifier.padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            Text("Verifikasi WhatsApp", fontFamily = FrauncesFamily, fontSize = 22.sp,
-                fontWeight = FontWeight.Medium, color = Charcoal)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Verifikasi WhatsApp", fontFamily = FrauncesFamily, fontSize = 22.sp,
+                    fontWeight = FontWeight.Medium, color = Charcoal)
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Tutup",
+                        tint = Charcoal
+                    )
+                }
+            }
             Text("Masukkan kode OTP 6 digit yang dikirim ke nomor WhatsApp kamu.",
                 fontFamily = DmSansFamily, fontSize = 12.sp, color = Charcoal60, lineHeight = 18.sp)
             OutlinedTextField(

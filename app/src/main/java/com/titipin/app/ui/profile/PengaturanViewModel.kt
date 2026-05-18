@@ -72,7 +72,13 @@ class PengaturanViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _actionState.value = PengaturanActionState.Loading
-            when (val result = authRepository.updateProfile(name, waNumber, status, avatarUrl)) {
+            val currentUser = (_uiState.value as? PengaturanUiState.Ready)?.user
+            when (val result = authRepository.updateProfile(
+                name = name ?: currentUser?.name,
+                waNumber = waNumber ?: currentUser?.waNumber,
+                status = status ?: currentUser?.status,
+                avatarUrl = avatarUrl ?: currentUser?.avatarUrl
+            )) {
                 is Result.Success -> {
                     _uiState.value = PengaturanUiState.Ready(result.data)
                     _actionState.value = PengaturanActionState.Success("Profil berhasil diperbarui")
@@ -89,7 +95,13 @@ class PengaturanViewModel @Inject constructor(
             _actionState.value = PengaturanActionState.Loading
             when (val uploadResult = uploadRepository.uploadImage(uri)) {
                 is Result.Success -> {
-                    when (val result = authRepository.updateProfile(avatarUrl = uploadResult.data)) {
+                    val currentUser = (_uiState.value as? PengaturanUiState.Ready)?.user
+                    when (val result = authRepository.updateProfile(
+                        name = currentUser?.name,
+                        waNumber = currentUser?.waNumber,
+                        status = currentUser?.status,
+                        avatarUrl = uploadResult.data
+                    )) {
                         is Result.Success -> {
                             _uiState.value = PengaturanUiState.Ready(result.data)
                             _actionState.value = PengaturanActionState.Success("Foto profil berhasil diperbarui")
