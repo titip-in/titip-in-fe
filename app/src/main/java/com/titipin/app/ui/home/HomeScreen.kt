@@ -49,7 +49,10 @@ fun HomeScreen(
     onNavigateToJastip: () -> Unit = {},
     onNavigateToPreloved: () -> Unit = {},
     onNavigateToJastipDetail: (String) -> Unit = {},
+    onNavigateToJastipRequestDetail: (String) -> Unit = {},
     onNavigateToPrelovedDetail: (String) -> Unit = {},
+    onNavigateToPrelovedRequestDetail: (String) -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     onNavigateToPengaturan: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -106,7 +109,8 @@ fun HomeScreen(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Sage, Terracotta))),
+                        .background(Brush.linearGradient(listOf(Sage, Terracotta)))
+                        .clickable { onNavigateToProfile() },
                     contentAlignment = Alignment.Center
                 ) {
                     if (!uiState.userAvatarUrl.isNullOrBlank()) {
@@ -315,7 +319,7 @@ fun HomeScreen(
                                         title    = j.title.ifBlank { "${j.fromLocation} → ${j.toLocation}" },
                                         subtitle = "Jastip · ${j.user.name.trim()}",
                                         time     = timeAgo(j.createdAt),
-                                        onClick  = onNavigateToJastip
+                                        onClick  = { onNavigateToJastipDetail(j.id) }
                                     ))
                                 }
                                 uiState.recentPreloved.forEach { p ->
@@ -324,7 +328,7 @@ fun HomeScreen(
                                         title    = p.title,
                                         subtitle = "Preloved · ${p.formattedPrice()}",
                                         time     = timeAgo(p.createdAt ?: p.updatedAt.orEmpty()),
-                                        onClick  = onNavigateToPreloved
+                                        onClick  = { onNavigateToPrelovedDetail(p.id) }
                                     ))
                                 }
                                 uiState.recentJastipRequests.forEach { r ->
@@ -333,7 +337,7 @@ fun HomeScreen(
                                         title    = r.title,
                                         subtitle = "Request · ${r.fromLocation} → ${r.toLocation}",
                                         time     = timeAgo(r.createdAt ?: r.updatedAt.orEmpty()),
-                                        onClick  = onNavigateToJastip
+                                        onClick  = { onNavigateToJastipRequestDetail(r.id) }
                                     ))
                                 }
                                 uiState.recentPrelovedRequests.forEach { pr ->
@@ -342,7 +346,7 @@ fun HomeScreen(
                                         title    = pr.title,
                                         subtitle = "Cari Barang · ${pr.formattedMaxPrice() ?: "Budget fleksibel"}",
                                         time     = timeAgo(pr.createdAt.orEmpty()),
-                                        onClick  = onNavigateToPreloved
+                                        onClick  = { onNavigateToPrelovedRequestDetail(pr.id) }
                                     ))
                                 }
                             }

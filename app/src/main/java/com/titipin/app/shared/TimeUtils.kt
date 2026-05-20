@@ -1,6 +1,7 @@
 package com.titipin.app.shared
 
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -11,8 +12,8 @@ fun timeAgo(isoDateTime: String): String {
     return try {
         // BE return format: "2026-03-10T16:55:11.123456" — trim microseconds
         val cleaned = isoDateTime.substringBefore(".")
-        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        val now = LocalDateTime.now()
+        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME).plusHours(7)
+        val now = LocalDateTime.now(ZoneId.of("Asia/Jakarta"))
 
         val minutes = ChronoUnit.MINUTES.between(dateTime, now)
         val hours   = ChronoUnit.HOURS.between(dateTime, now)
@@ -33,7 +34,7 @@ fun timeAgo(isoDateTime: String): String {
 fun formatDeadlineDisplay(isoDateTime: String, includeYear: Boolean): String {
     return try {
         val cleaned = isoDateTime.substringBefore(".")
-        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME).plusHours(7)
         val locale = Locale("id", "ID")
         val pattern = if (includeYear) "dd MMM yyyy, HH:mm" else "dd MMM, HH:mm"
         dateTime.format(DateTimeFormatter.ofPattern(pattern, locale))
@@ -46,7 +47,7 @@ fun formatDeadlineDisplay(isoDateTime: String, includeYear: Boolean): String {
 fun formatDateDisplay(isoDateTime: String, includeYear: Boolean): String {
     return try {
         val cleaned = isoDateTime.substringBefore(".")
-        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME).plusHours(7)
         val locale = Locale("id", "ID")
         val pattern = if (includeYear) "dd MMM yyyy" else "dd MMM"
         dateTime.format(DateTimeFormatter.ofPattern(pattern, locale))
@@ -58,7 +59,7 @@ fun formatDateDisplay(isoDateTime: String, includeYear: Boolean): String {
 fun formatTimeDisplay(isoDateTime: String): String {
     return try {
         val cleaned = isoDateTime.substringBefore(".")
-        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        val dateTime = LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME).plusHours(7)
         dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
     } catch (_: Exception) {
         isoDateTime.substringAfter("T").take(5)

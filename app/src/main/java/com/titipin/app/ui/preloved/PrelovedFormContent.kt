@@ -39,7 +39,8 @@ private val CONDITIONS = listOf(
 @Composable
 fun PrelovedFormContent(
     viewModel: PrelovedViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    maxImages: Int = 5
 ) {
     val actionState by viewModel.actionState.collectAsState()
     val categoryState by viewModel.categoryState.collectAsState()
@@ -104,13 +105,14 @@ fun PrelovedFormContent(
             ListingImagePickerRow(
                 images       = imageItems,
                 onPickImages = { newUris ->
-                    val space = 5 - imageItems.size
+                    val space = maxImages - imageItems.size
                     val toAdd = newUris.take(space).map { ImageItem.Local(it) }
                     imageItems = imageItems + toAdd
                 },
                 onRemove = { idx ->
                     imageItems = imageItems.toMutableList().also { it.removeAt(idx) }
-                }
+                },
+                maxImages = maxImages
             )
 
             // ── NAMA BARANG ───────────────────────────────────────

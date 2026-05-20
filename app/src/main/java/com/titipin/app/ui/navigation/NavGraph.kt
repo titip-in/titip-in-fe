@@ -200,7 +200,10 @@ fun TitipinNavGraph(
                     onNavigateToJastip      = { navController.navigate(Routes.JASTIP) },
                     onNavigateToPreloved    = { navController.navigate(Routes.PRELOVED) },
                     onNavigateToJastipDetail = { id -> navController.navigate(Routes.jastipDetail(id)) },
+                    onNavigateToJastipRequestDetail = { id -> navController.navigate(Routes.jastipRequestDetail(id)) },
                     onNavigateToPrelovedDetail = { id -> navController.navigate(Routes.prelovedDetail(id)) },
+                    onNavigateToPrelovedRequestDetail = { id -> navController.navigate(Routes.prelovedRequestDetail(id)) },
+                    onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
                     onNavigateToPengaturan  = { navController.navigate(Routes.PENGATURAN) }
                 )
             }

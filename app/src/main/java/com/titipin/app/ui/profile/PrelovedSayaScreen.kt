@@ -21,11 +21,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.PrelovedDto
 import com.titipin.app.data.model.PrelovedRequestDto
+import com.titipin.app.data.model.UserTier
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.normalizedTier
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierBoostLimit
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.preloved.EditPrelovedRequestSheet
 import com.titipin.app.ui.preloved.EditPrelovedSheet
@@ -155,6 +159,7 @@ fun PrelovedSayaScreen(
                 }
                 is PrelovedSayaState.Success -> {
                     val isActionLoading = actionState is PrelovedSayaActionState.Loading
+                    val user = state.user
 
                     when (selectedTab) {
                         // ── Tab 0: Dijual (AVAILABLE) ─────────────
@@ -176,6 +181,9 @@ fun PrelovedSayaScreen(
                                             onLihatDetail   = { onNavigateToDetail(item.id) },
                                             onEdit          = { viewModel.fetchPrelovedForEdit(item.id) },
                                             onMarkSold      = { viewModel.updateListingStatus(item.id, "SOLD") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostListing(item.id) },
                                             onHapus         = { viewModel.deleteListing(item.id) }
                                         )
                                     }
@@ -202,6 +210,9 @@ fun PrelovedSayaScreen(
                                             onClick         = { onNavigateToRequestDetail(req.id) },
                                             onEdit          = { editRequest = req },
                                             onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostRequest(req.id) },
                                             onHapus         = { viewModel.deleteRequest(req.id) }
                                         )
                                     }
@@ -303,11 +314,16 @@ private fun PrelovedSayaCard(
     onEdit: () -> Unit,
     onMarkSold: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSoldDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val isAvailable = item.status == "AVAILABLE"
 
     Card(
@@ -353,6 +369,10 @@ private fun PrelovedSayaCard(
                     }
                 }
                 Spacer(Modifier.height(2.dp))
+                if (!item.boostedAt.isNullOrBlank()) {
+                    BoostedBadge()
+                    Spacer(Modifier.height(4.dp))
+                }
                 Text(item.formattedPrice(), fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = Terracotta, fontFamily = DmSansFamily)
                 Spacer(Modifier.height(2.dp))
@@ -384,6 +404,19 @@ private fun PrelovedSayaCard(
                         }
                     }
                     if (isAvailable && onMarkSold != null) {
+                        BoostActionButton(
+                            tier = tier,
+                            boostQuota = boostQuota,
+                            isBoosted = !item.boostedAt.isNullOrBlank(),
+                            isActionLoading = isActionLoading,
+                            onBoostClick = {
+                                if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                    showUpgradeDialog = true
+                                } else {
+                                    showBoostDialog = true
+                                }
+                            }
+                        )
                         Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Terracotta)
                             .clickable(enabled = !isActionLoading) { showSoldDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -419,7 +452,11 @@ private fun PrelovedSayaCard(
     if (showSoldDialog && onMarkSold != null) {
         SayaDeleteDialog(
             title = "Tandai Terjual?",
-            message = "Barang ini akan masuk arsip dan tidak tampil sebagai barang tersedia.",
+            message = if (item.boostedAt.isNullOrBlank()) {
+                "Barang ini akan masuk arsip dan tidak tampil sebagai barang tersedia."
+            } else {
+                "Barang ini sedang dipromosikan. Menandai terjual akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tandai",
             onConfirm = { showSoldDialog = false; onMarkSold() },
             onDismiss = { showSoldDialog = false }
@@ -434,6 +471,28 @@ private fun PrelovedSayaCard(
             onDismiss = { showReopenDialog = false }
         )
     }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (item.boostedAt.isNullOrBlank()) "Boost Barang?" else "Boost Ulang Barang?",
+            message = if (item.boostedAt.isNullOrBlank()) {
+                "Barang ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Barang ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
+        )
+    }
 }
 
 // ── PRELOVED REQUEST CARD ─────────────────────────────────────────
@@ -445,11 +504,16 @@ private fun PrelovedRequestSayaCard(
     onEdit: () -> Unit,
     onTutup: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val isOpen = request.status == "OPEN"
 
     Card(
@@ -475,6 +539,10 @@ private fun PrelovedRequestSayaCard(
                 }
             }
             Spacer(Modifier.height(4.dp))
+            if (!request.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(4.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val budget = request.formattedMaxPrice()
                 if (budget != null) {
@@ -511,6 +579,19 @@ private fun PrelovedRequestSayaCard(
                         fontWeight = FontWeight.Medium)
                 }
                 if (onTutup != null && isOpen) {
+                    BoostActionButton(
+                        tier = tier,
+                        boostQuota = boostQuota,
+                        isBoosted = !request.boostedAt.isNullOrBlank(),
+                        isActionLoading = isActionLoading,
+                        onBoostClick = {
+                            if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                showUpgradeDialog = true
+                            } else {
+                                showBoostDialog = true
+                            }
+                        }
+                    )
                     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -545,7 +626,11 @@ private fun PrelovedRequestSayaCard(
     if (showCloseDialog && onTutup != null) {
         SayaDeleteDialog(
             title = "Tutup Pencarian?",
-            message = "Pencarian ini akan masuk arsip dan tidak tampil sebagai pencarian aktif.",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Pencarian ini akan masuk arsip dan tidak tampil sebagai pencarian aktif."
+            } else {
+                "Pencarian ini sedang dipromosikan. Menutup pencarian akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tutup",
             onConfirm = { showCloseDialog = false; onTutup() },
             onDismiss = { showCloseDialog = false }
@@ -558,6 +643,28 @@ private fun PrelovedRequestSayaCard(
             confirmLabel = "Buka Lagi",
             onConfirm = { showReopenDialog = false; onBuka() },
             onDismiss = { showReopenDialog = false }
+        )
+    }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (request.boostedAt.isNullOrBlank()) "Boost Pencarian?" else "Boost Ulang Pencarian?",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Pencarian ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Pencarian ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
         )
     }
 }

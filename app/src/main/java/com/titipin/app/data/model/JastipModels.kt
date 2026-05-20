@@ -10,7 +10,8 @@ data class UserSummary(
     val waNumber: String,
     @SerializedName("avatar_url")
     val avatarUrl: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val tier: String = UserTier.BASIC
 )
 data class JastipDto(
     val id: String,
@@ -36,6 +37,8 @@ data class JastipDto(
     @SerializedName("primary_image_url")
     val primaryImageUrlRaw: String? = null,  // field langsung dari API list
     val status: String,             // "ACTIVE" | "CLOSED"
+    @SerializedName("boosted_at")
+    val boostedAt: String? = null,
     @SerializedName("created_at")
     val createdAt: String
 )
@@ -88,7 +91,6 @@ data class UpdateJastipListingRequest(
     val primaryImageUrl: String? = null,
     val images: List<String>? = null
 )
-
 
 
 

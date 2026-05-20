@@ -9,6 +9,9 @@ import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.UpdateJastipListingRequest
 import com.titipin.app.data.model.UpdateRequestBody
+import com.titipin.app.data.model.UserData
+import com.titipin.app.data.repository.AuthRepository
+import com.titipin.app.data.repository.BoostRepository
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.RequestRepository
@@ -27,7 +30,8 @@ sealed class JastipSayaState {
     object Loading : JastipSayaState()
     data class Success(
         val listings: List<JastipDto> = emptyList(),
-        val requests: List<RequestDto> = emptyList()
+        val requests: List<RequestDto> = emptyList(),
+        val user: UserData? = null
     ) : JastipSayaState()
     data class Error(val message: String) : JastipSayaState()
 }
@@ -44,6 +48,8 @@ sealed class JastipSayaActionState {
 class JastipSayaViewModel @Inject constructor(
     private val jastipRepository: JastipRepository,
     private val requestRepository: RequestRepository,
+    private val authRepository: AuthRepository,
+    private val boostRepository: BoostRepository,
     private val categoryRepository: CategoryRepository,
     private val uploadRepository: UploadRepository,
     private val dataStore: DataStoreManager
@@ -85,11 +91,13 @@ class JastipSayaViewModel @Inject constructor(
             _listState.value = JastipSayaState.Loading
             val listingsDeferred = async { jastipRepository.getMyJastipList() }
             val requestsDeferred = async { requestRepository.getMyRequestList() }
+            val userDeferred = async { authRepository.getMe() }
 
             val listings = (listingsDeferred.await() as? Result.Success)?.data ?: emptyList()
             val requests = (requestsDeferred.await() as? Result.Success)?.data ?: emptyList()
+            val user = (userDeferred.await() as? Result.Success)?.data
 
-            _listState.value = JastipSayaState.Success(listings = listings, requests = requests)
+            _listState.value = JastipSayaState.Success(listings = listings, requests = requests, user = user)
         }
     }
 
@@ -167,6 +175,16 @@ class JastipSayaViewModel @Inject constructor(
         }
     }
 
+    fun boostJastip(id: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipSayaActionState.Loading
+            _actionState.value = when (val r = boostRepository.boostJastipListing(id)) {
+                is Result.Success -> JastipSayaActionState.Success
+                is Result.Error -> JastipSayaActionState.Error(r.message)
+            }
+        }
+    }
+
     // ── Jastip request actions ─────────────────────────────────────
     fun updateRequestStatus(id: String, status: String) {
         viewModelScope.launch {
@@ -216,6 +234,16 @@ class JastipSayaViewModel @Inject constructor(
             _actionState.value = when (val r = requestRepository.deleteRequest(id)) {
                 is Result.Success -> JastipSayaActionState.Success
                 is Result.Error   -> JastipSayaActionState.Error(r.message)
+            }
+        }
+    }
+
+    fun boostRequest(id: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipSayaActionState.Loading
+            _actionState.value = when (val r = boostRepository.boostJastipRequest(id)) {
+                is Result.Success -> JastipSayaActionState.Success
+                is Result.Error -> JastipSayaActionState.Error(r.message)
             }
         }
     }

@@ -6,6 +6,8 @@ import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.CategoryDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.UpdateRequestBody
+import com.titipin.app.data.model.UserTier
+import com.titipin.app.data.model.normalizedTier
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
@@ -66,6 +68,9 @@ class RequestViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow<String?>(null)
     val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
 
+    private val _currentUserTier = MutableStateFlow(UserTier.BASIC)
+    val currentUserTier: StateFlow<String> = _currentUserTier.asStateFlow()
+
     init {
         loadRequestList()
         loadCategories()
@@ -110,6 +115,7 @@ class RequestViewModel @Inject constructor(
     private fun loadCurrentUser() {
         viewModelScope.launch {
             _currentUserId.value = dataStore.userId.firstOrNull()
+            _currentUserTier.value = dataStore.userTier.firstOrNull().normalizedTier()
         }
     }
 

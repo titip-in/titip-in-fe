@@ -22,7 +22,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.RequestDto
+import com.titipin.app.data.model.UserTier
+import com.titipin.app.data.model.normalizedTier
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierBoostLimit
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.shared.formatDeadlineDisplay
 import com.titipin.app.shared.timeAgo
 import com.titipin.app.ui.components.LimitReachedDialog
@@ -157,6 +161,7 @@ fun JastipSayaScreen(
                 }
                 is JastipSayaState.Success -> {
                     val isActionLoading = actionState is JastipSayaActionState.Loading
+                    val user = state.user
 
                     when (selectedTab) {
                         // ── Tab 0: Listing Aktif ──────────────────
@@ -178,6 +183,9 @@ fun JastipSayaScreen(
                                             onEdit          = { viewModel.fetchJastipForEdit(jastip.id) },
                                             isEditLoading   = fetchingEditId == jastip.id,
                                             onTutup         = { viewModel.updateJastipStatus(jastip.id, "CLOSED") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostJastip(jastip.id) },
                                             onHapus         = { viewModel.deleteJastip(jastip.id) }
                                         )
                                     }
@@ -204,6 +212,9 @@ fun JastipSayaScreen(
                                             onClick         = { onNavigateToRequestDetail(req.id) },
                                             onEdit          = { editRequest = req },
                                             onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostRequest(req.id) },
                                             onHapus         = { viewModel.deleteRequest(req.id) }
                                         )
                                     }
@@ -320,11 +331,16 @@ private fun JastipSayaCard(
     isEditLoading: Boolean = false,
     onTutup: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val deadlineDisplay  = formatDeadlineDisplay(jastip.deadline, includeYear = false)
     val createdAtLabel   = timeAgo(jastip.createdAt)
     val isActive         = jastip.status == "ACTIVE"
@@ -347,6 +363,10 @@ private fun JastipSayaCard(
                         .clip(RoundedCornerShape(Radius.md)),
                     contentScale = ContentScale.Crop
                 )
+                Spacer(Modifier.height(Spacing.sm))
+            }
+            if (!jastip.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
                 Spacer(Modifier.height(Spacing.sm))
             }
             // Rute + status
@@ -408,6 +428,19 @@ private fun JastipSayaCard(
                     }
                 }
                 if (onTutup != null) {
+                    BoostActionButton(
+                        tier = tier,
+                        boostQuota = boostQuota,
+                        isBoosted = !jastip.boostedAt.isNullOrBlank(),
+                        isActionLoading = isActionLoading,
+                        onBoostClick = {
+                            if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                showUpgradeDialog = true
+                            } else {
+                                showBoostDialog = true
+                            }
+                        }
+                    )
                     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -442,7 +475,11 @@ private fun JastipSayaCard(
     if (showCloseDialog && onTutup != null) {
         SayaDeleteDialog(
             title = "Tutup Jastip?",
-            message = "Listing ini akan dipindahkan ke selesai dan tidak tampil sebagai jastip aktif.",
+            message = if (jastip.boostedAt.isNullOrBlank()) {
+                "Listing ini akan dipindahkan ke selesai dan tidak tampil sebagai jastip aktif."
+            } else {
+                "Listing ini sedang dipromosikan. Menutup item akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tutup",
             onConfirm = { showCloseDialog = false; onTutup() },
             onDismiss = { showCloseDialog = false }
@@ -457,6 +494,28 @@ private fun JastipSayaCard(
             onDismiss = { showReopenDialog = false }
         )
     }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (jastip.boostedAt.isNullOrBlank()) "Boost Jastip?" else "Boost Ulang Jastip?",
+            message = if (jastip.boostedAt.isNullOrBlank()) {
+                "Listing ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Listing ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
+        )
+    }
 }
 
 // ── JASTIP REQUEST CARD ───────────────────────────────────────────
@@ -468,11 +527,16 @@ private fun JastipRequestSayaCard(
     onEdit: () -> Unit,
     onTutup: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val isOpen = request.status == "OPEN"
     val createdAtLabel = timeAgo(request.createdAt ?: request.updatedAt.orEmpty())
 
@@ -511,6 +575,10 @@ private fun JastipRequestSayaCard(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            if (!request.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(6.dp))
+            }
 
             // Rute dalam kotak CreamDark (konsisten dengan card lain)
             Row(
@@ -569,6 +637,19 @@ private fun JastipRequestSayaCard(
                         fontWeight = FontWeight.Medium)
                 }
                 if (onTutup != null && isOpen) {
+                    BoostActionButton(
+                        tier = tier,
+                        boostQuota = boostQuota,
+                        isBoosted = !request.boostedAt.isNullOrBlank(),
+                        isActionLoading = isActionLoading,
+                        onBoostClick = {
+                            if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                showUpgradeDialog = true
+                            } else {
+                                showBoostDialog = true
+                            }
+                        }
+                    )
                     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -603,7 +684,11 @@ private fun JastipRequestSayaCard(
     if (showCloseDialog && onTutup != null) {
         SayaDeleteDialog(
             title = "Tutup Request?",
-            message = "Request ini akan dipindahkan ke selesai dan tidak tampil sebagai request aktif.",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Request ini akan dipindahkan ke selesai dan tidak tampil sebagai request aktif."
+            } else {
+                "Request ini sedang dipromosikan. Menutup request akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tutup",
             onConfirm = { showCloseDialog = false; onTutup() },
             onDismiss = { showCloseDialog = false }
@@ -616,6 +701,28 @@ private fun JastipRequestSayaCard(
             confirmLabel = "Buka Lagi",
             onConfirm = { showReopenDialog = false; onBuka() },
             onDismiss = { showReopenDialog = false }
+        )
+    }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (request.boostedAt.isNullOrBlank()) "Boost Request?" else "Boost Ulang Request?",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Request ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Request ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
         )
     }
 }
@@ -677,5 +784,37 @@ private fun JastipSayaChip(text: String) {
     Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
         .padding(horizontal = 10.dp, vertical = 5.dp)) {
         Text(text, fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+    }
+}
+
+@Composable
+internal fun BoostActionButton(
+    tier: String?,
+    boostQuota: Int,
+    isBoosted: Boolean,
+    isActionLoading: Boolean,
+    onBoostClick: () -> Unit
+) {
+    val isBasic = tier.normalizedTier() == UserTier.BASIC
+    val label = when {
+        isBasic -> "Boost"
+        boostQuota <= 0 -> "Boost 0"
+        isBoosted -> "Boost Ulang"
+        else -> "Boost"
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.full))
+            .background(if (isBasic || boostQuota <= 0) CreamDark else GoldPale)
+            .clickable(enabled = !isActionLoading) { onBoostClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = if (isBasic || boostQuota <= 0) Charcoal60 else Gold,
+            fontFamily = DmSansFamily,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }

@@ -27,6 +27,8 @@ import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierActiveLimit
+import com.titipin.app.data.model.tierImageLimit
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageWanted
@@ -51,6 +53,7 @@ fun PrelovedScreen(
     val categoryState          by viewModel.categoryState.collectAsState()
     val selectedCategoryId     by viewModel.selectedCategoryId.collectAsState()
     val currentUserId          by viewModel.currentUserId.collectAsState()
+    val currentUserTier        by viewModel.currentUserTier.collectAsState()
 
     val requestListState       by prelovedRequestViewModel.listState.collectAsState()
     val requestActionState     by prelovedRequestViewModel.actionState.collectAsState()
@@ -58,6 +61,7 @@ fun PrelovedScreen(
     val requestCategoryState   by prelovedRequestViewModel.categoryState.collectAsState()
     val requestSelectedCatId   by prelovedRequestViewModel.selectedCategoryId.collectAsState()
     val requestCurrentUserId   by prelovedRequestViewModel.currentUserId.collectAsState()
+    val requestCurrentUserTier by prelovedRequestViewModel.currentUserTier.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -189,20 +193,22 @@ fun PrelovedScreen(
                 .background(Terracotta)
                 .clickable {
                     if (selectedTab == 0) {
+                        val activeLimit = tierActiveLimit(currentUserTier)
                         val activeMine = (listState as? PrelovedListState.Success)
                             ?.data
                             ?.count { it.userId?.toString() == currentUserId && it.status == "AVAILABLE" } ?: 0
-                        if (activeMine >= 5) {
-                            limitDialogMessage = "Kamu sudah punya 5 barang preloved aktif. Tutup salah satu barang dulu sebelum membuat listing baru."
+                        if (activeMine >= activeLimit) {
+                            limitDialogMessage = "Kamu sudah punya $activeLimit barang preloved aktif sesuai limit plan kamu. Tutup salah satu barang dulu atau upgrade plan."
                         } else {
                             showPrelovedSheet = true
                         }
                     } else {
+                        val activeLimit = tierActiveLimit(requestCurrentUserTier)
                         val activeMine = (requestListState as? PrelovedRequestListState.Success)
                             ?.data
                             ?.count { it.userId?.toString() == requestCurrentUserId && it.status == "OPEN" } ?: 0
-                        if (activeMine >= 5) {
-                            limitDialogMessage = "Kamu sudah punya 5 pencarian aktif. Tutup salah satu pencarian dulu sebelum membuat request baru."
+                        if (activeMine >= activeLimit) {
+                            limitDialogMessage = "Kamu sudah punya $activeLimit pencarian aktif sesuai limit plan kamu. Tutup salah satu pencarian dulu atau upgrade plan."
                         } else {
                             showRequestSheet = true
                         }
@@ -230,6 +236,7 @@ fun PrelovedScreen(
         ) {
             PrelovedFormContent(
                 viewModel = viewModel,
+                maxImages = tierImageLimit(currentUserTier),
                 onDismiss = {
                     scope.launch { prelovedSheetState.hide() }.invokeOnCompletion {
                         showPrelovedSheet = false

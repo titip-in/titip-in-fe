@@ -18,9 +18,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.ui.layout.ContentScale
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.titipin.app.ui.components.AvatarCropDialog
+import com.titipin.app.ui.components.PlanSummaryPanel
+import com.titipin.app.ui.components.TierBadge
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -35,12 +39,13 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isUploadingAvatar by viewModel.isUploadingAvatar.collectAsState()
     var showReviewDialog by remember { mutableStateOf(false) }
+    var avatarCropUri by remember { mutableStateOf<Uri?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             if (uri != null) {
-                viewModel.uploadAvatar(uri)
+                avatarCropUri = uri
             }
         }
     )
@@ -182,7 +187,8 @@ fun ProfileScreen(
                                         )
                                     }
                                     Spacer(Modifier.height(6.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        TierBadge(user.tier)
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(Radius.full))
@@ -270,9 +276,16 @@ fun ProfileScreen(
                                 .padding(Spacing.md)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("⚡", fontSize = 14.sp)
-                                    Text("LIMIT AKTIVITAS", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Cream, fontFamily = DmSansFamily)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("⚡", fontSize = 14.sp)
+                                        Text("LIMIT AKTIVITAS", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Cream, fontFamily = DmSansFamily)
+                                    }
+                                    Text("${usage.limit} / kategori", fontSize = 10.sp, color = Cream.copy(alpha = 0.65f), fontFamily = DmSansFamily)
                                 }
                                 UsageLimitRow("📦 Jastip Listing", usage.activeJastipListings, usage.limit, Sage)
                                 UsageLimitRow("📍 Jastip Request", usage.activeJastipRequests, usage.limit, Gold)
@@ -280,6 +293,11 @@ fun ProfileScreen(
                                 UsageLimitRow("🔍 Preloved Request", usage.activePrelovedRequests, usage.limit, SageLight)
                             }
                         }
+
+                        PlanSummaryPanel(
+                            tier = user.tier,
+                            boostQuota = user.boostQuota
+                        )
 
                         Spacer(Modifier.height(4.dp))
                         ProfileMenuItem(emoji = "📦", label = "Jastip Saya",
@@ -383,6 +401,17 @@ fun ProfileScreen(
             },
             shape = RoundedCornerShape(Radius.xl),
             containerColor = Cream
+        )
+    }
+
+    avatarCropUri?.let { uri ->
+        AvatarCropDialog(
+            imageUri = uri,
+            onDismiss = { avatarCropUri = null },
+            onCrop = { bitmap ->
+                avatarCropUri = null
+                viewModel.uploadAvatarBitmap(bitmap)
+            }
         )
     }
 }

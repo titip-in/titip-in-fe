@@ -70,6 +70,9 @@ class JastipViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow<String?>(null)
     val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
 
+    private val _currentUserTier = MutableStateFlow(UserTier.BASIC)
+    val currentUserTier: StateFlow<String> = _currentUserTier.asStateFlow()
+
     // Load list saat screen pertama kali muncul
     init {
         loadJastipList()
@@ -115,6 +118,7 @@ class JastipViewModel @Inject constructor(
     private fun loadCurrentUser() {
         viewModelScope.launch {
             _currentUserId.value = dataStore.userId.firstOrNull()
+            _currentUserTier.value = dataStore.userTier.firstOrNull().normalizedTier()
         }
     }
 

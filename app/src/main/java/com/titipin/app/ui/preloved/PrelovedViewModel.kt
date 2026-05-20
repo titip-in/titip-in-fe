@@ -66,6 +66,9 @@ class PrelovedViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow<String?>(null)
     val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
 
+    private val _currentUserTier = MutableStateFlow(UserTier.BASIC)
+    val currentUserTier: StateFlow<String> = _currentUserTier.asStateFlow()
+
     init {
         loadPrelovedList()
         loadCategories()
@@ -120,6 +123,7 @@ class PrelovedViewModel @Inject constructor(
     private fun loadCurrentUser() {
         viewModelScope.launch {
             _currentUserId.value = dataStore.userId.firstOrNull()
+            _currentUserTier.value = dataStore.userTier.firstOrNull().normalizedTier()
         }
     }
 
