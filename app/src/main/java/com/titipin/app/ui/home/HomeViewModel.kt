@@ -7,6 +7,9 @@ import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.PrelovedDto
 import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.RequestDto
+import com.titipin.app.data.model.UserTier
+import com.titipin.app.data.model.normalizedTier
+import com.titipin.app.data.model.tierActiveLimit
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.PrelovedRepository
 import com.titipin.app.data.repository.PrelovedRequestRepository
@@ -25,8 +28,14 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val userName: String = "",
+    val userId: String? = null,
     val userInitials: String = "",
     val userAvatarUrl: String? = null,
+    val userTier: String = UserTier.BASIC,
+    val userBoostQuota: Int = 0,
+    val userTierExpiredAt: String? = null,
+    val activeMineCount: Int = 0,
+    val activeLimit: Int = 3,
     // ── Raw data ────────────────────────────────────────────────────────────
     val allJastip: List<JastipDto> = emptyList(),
     val allPreloved: List<PrelovedDto> = emptyList(),
@@ -72,16 +81,25 @@ class HomeViewModel @Inject constructor(
     fun loadData() {
         viewModelScope.launch {
             val name = dataStore.userName.first() ?: ""
+            val userId = dataStore.userId.first()
             val wa   = dataStore.userWaNumber.first() ?: ""
             val avatarUrl = dataStore.userAvatarUrl.first()
+            val tier = dataStore.userTier.first().normalizedTier()
+            val boostQuota = dataStore.userBoostQuota.first()
+            val tierExpiredAt = dataStore.userTierExpiredAt.first()
             val initials = name.trim()
                 .split(" ").filter { it.isNotBlank() }
                 .take(2).joinToString("") { it.first().uppercase() }
 
             _uiState.value = _uiState.value.copy(
                 userName         = name,
+                userId           = userId,
                 userInitials     = initials,
                 userAvatarUrl    = avatarUrl,
+                userTier         = tier,
+                userBoostQuota   = boostQuota,
+                userTierExpiredAt = tierExpiredAt,
+                activeLimit      = tierActiveLimit(tier),
                 showSetupProfile = wa.isBlank() && name.isNotBlank()
             )
 
@@ -111,6 +129,12 @@ class HomeViewModel @Inject constructor(
                 prelovedCount        = allPreloved.count { it.status == "AVAILABLE" },
                 jastipRequestCount   = allJastipRequests.count { it.status == "OPEN" },
                 prelovedRequestCount = allPrelovedRequests.count { it.status == "OPEN" },
+                activeMineCount = listOf(
+                    allJastip.count { it.userId == userId && it.status == "ACTIVE" },
+                    allPreloved.count { it.userId?.toString() == userId && it.status == "AVAILABLE" },
+                    allJastipRequests.count { it.userId?.toString() == userId && it.status == "OPEN" },
+                    allPrelovedRequests.count { it.userId?.toString() == userId && it.status == "OPEN" }
+                ).maxOrNull() ?: 0,
                 isLoading = false
             )
         }

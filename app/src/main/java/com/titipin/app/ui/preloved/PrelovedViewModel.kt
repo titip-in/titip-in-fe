@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import android.net.Uri
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
+import com.titipin.app.data.repository.AnalyticsRepository
+import com.titipin.app.data.repository.BoostRepository
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.PrelovedRepository
 import com.titipin.app.data.repository.Result
@@ -42,7 +44,9 @@ class PrelovedViewModel @Inject constructor(
     private val repository: PrelovedRepository,
     private val categoryRepository: CategoryRepository,
     private val dataStore: DataStoreManager,
-    private val uploadRepository: UploadRepository
+    private val uploadRepository: UploadRepository,
+    private val boostRepository: BoostRepository,
+    private val analyticsRepository: AnalyticsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<PrelovedListState>(PrelovedListState.Loading)
@@ -65,6 +69,12 @@ class PrelovedViewModel @Inject constructor(
 
     private val _currentUserId = MutableStateFlow<String?>(null)
     val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
+    private val _currentUserTier = MutableStateFlow(UserTier.BASIC)
+    val currentUserTier: StateFlow<String> = _currentUserTier.asStateFlow()
+
+    private val _currentBoostQuota = MutableStateFlow(0)
+    val currentBoostQuota: StateFlow<Int> = _currentBoostQuota.asStateFlow()
 
     init {
         loadPrelovedList()
@@ -120,6 +130,8 @@ class PrelovedViewModel @Inject constructor(
     private fun loadCurrentUser() {
         viewModelScope.launch {
             _currentUserId.value = dataStore.userId.firstOrNull()
+            _currentUserTier.value = dataStore.userTier.firstOrNull().normalizedTier()
+            _currentBoostQuota.value = dataStore.userBoostQuota.firstOrNull() ?: 0
         }
     }
 
@@ -231,6 +243,19 @@ class PrelovedViewModel @Inject constructor(
         }
     }
 
+    fun boostPreloved(id: String) {
+        viewModelScope.launch {
+            _actionState.value = PrelovedActionState.Loading
+            _actionState.value = when (val result = boostRepository.boostPrelovedListing(id)) {
+                is Result.Success -> {
+                    _currentBoostQuota.value = result.data.remainingQuota
+                    PrelovedActionState.Success()
+                }
+                is Result.Error -> PrelovedActionState.Error(result.message)
+            }
+        }
+    }
+
     private suspend fun uploadImageUris(imageUris: List<Uri>): Result<List<String>> {
         val uploadedUrls = mutableListOf<String>()
         imageUris.forEachIndexed { index, uri ->
@@ -245,4 +270,9 @@ class PrelovedViewModel @Inject constructor(
     }
 
     fun resetActionState() { _actionState.value = PrelovedActionState.Idle }
+
+    /** Fire-and-forget: catat klik WA pada preloved listing */
+    fun trackPrelovedClick(id: String) {
+        analyticsRepository.trackClick("preloved_listing", id)
+    }
 }

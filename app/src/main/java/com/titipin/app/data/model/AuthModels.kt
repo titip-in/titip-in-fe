@@ -87,13 +87,65 @@ data class UserData(
     @SerializedName("avatar_url")
     val avatarUrl: String? = null,
     val status: String? = null,
+    val tier: String = UserTier.BASIC,
+    @SerializedName("boost_quota")
+    val boostQuota: Int = 0,
+    @SerializedName("is_banned")
+    val isBanned: Boolean = false,
+    @SerializedName("tier_expired_at")
+    val tierExpiredAt: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null,
     @SerializedName("updated_at")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    @SerializedName("deleted_at")
+    val deletedAt: String? = null
 )
 
 data class UploadImageResponse(
     @SerializedName("image_url")
     val imageUrl: String
 )
+
+data class BoostResponse(
+    @SerializedName("remaining_quota")
+    val remainingQuota: Int,
+    @SerializedName("boosted_at")
+    val boostedAt: String
+)
+
+object UserTier {
+    const val BASIC = "basic"
+    const val PLUS = "plus"
+    const val PRO = "pro"
+}
+
+fun String?.normalizedTier(): String = when (this?.lowercase()) {
+    UserTier.PLUS -> UserTier.PLUS
+    UserTier.PRO -> UserTier.PRO
+    else -> UserTier.BASIC
+}
+
+fun tierActiveLimit(tier: String?): Int = when (tier.normalizedTier()) {
+    UserTier.PLUS -> 10
+    UserTier.PRO -> 20
+    else -> 3
+}
+
+fun tierImageLimit(tier: String?): Int = when (tier.normalizedTier()) {
+    UserTier.PLUS -> 5
+    UserTier.PRO -> 10
+    else -> 3
+}
+
+fun tierBoostLimit(tier: String?): Int = when (tier.normalizedTier()) {
+    UserTier.PLUS -> 1
+    UserTier.PRO -> 5
+    else -> 0
+}
+
+fun tierDisplayName(tier: String?): String = when (tier.normalizedTier()) {
+    UserTier.PLUS -> "Titip Plus"
+    UserTier.PRO -> "Titip Pro"
+    else -> "Titip Basic"
+}

@@ -19,6 +19,8 @@ data class RequestDto(
     @SerializedName("to_loc")
     val toLocation: String,
     val status: String,      // "OPEN" | "CLOSED"
+    @SerializedName("boosted_at")
+    val boostedAt: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null,
     @SerializedName("updated_at")
@@ -65,6 +67,8 @@ data class PrelovedRequestDto(
     @SerializedName("max_price")
     val maxPrice: Int?,          // IDR, integer (nullable — opsional)
     val status: String,          // "OPEN" | "CLOSED"
+    @SerializedName("boosted_at")
+    val boostedAt: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null,
     @SerializedName("updated_at")

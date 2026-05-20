@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.titipin.app.ui.components.UpgradeSubscriptionSheet
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PengaturanScreen(
     onBack: () -> Unit,
+    onDeleteAccountSuccess: () -> Unit = {},
     viewModel: PengaturanViewModel = hiltViewModel()
 ) {
     val uiState     by viewModel.uiState.collectAsState()
@@ -49,6 +51,9 @@ fun PengaturanScreen(
     var showVerifyWaSheet    by remember { mutableStateOf(false) }
     var showChangePasswordSheet by remember { mutableStateOf(false) }
     var showResetPasswordSheet by remember { mutableStateOf(false) }
+    var showUpgradeSheet     by remember { mutableStateOf(false) }
+    var upgradeTargetTier    by remember { mutableStateOf("") }
+    var showDeleteDialog     by remember { mutableStateOf(false) }
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri -> if (uri != null) viewModel.uploadAvatar(uri) }
@@ -67,6 +72,7 @@ fun PengaturanScreen(
                 showVerifyWaSheet = false
                 showChangePasswordSheet = false
                 showResetPasswordSheet = false
+                showUpgradeSheet = false
                 scope.launch { snackbarHostState.showSnackbar(message) }
             }
             is PengaturanActionState.Error -> {
@@ -401,6 +407,65 @@ fun PengaturanScreen(
                     }
                 }
 
+                // ── SECTION: ZONA BERBAHAYA ──────────────────────────
+                PengaturanSectionLabel("AKUN LANJUTAN")
+
+                // Upgrade Plan
+                PengaturanMenuItem(
+                    emoji    = "⭐",
+                    label    = "Upgrade Plan",
+                    subtitle = "Bayar QRIS, upload bukti, admin proses 1×24 jam",
+                    onClick  = {
+                        val currentTier = (uiState as? PengaturanUiState.Ready)?.user?.tier ?: ""
+                        val nextTier = when (currentTier.lowercase()) {
+                            "basic" -> "plus"
+                            "plus"  -> "pro"
+                            else    -> return@PengaturanMenuItem
+                        }
+                        upgradeTargetTier = nextTier
+                        showUpgradeSheet = true
+                    }
+                )
+
+                // Hapus Akun
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDeleteDialog = true },
+                    shape = RoundedCornerShape(Radius.md),
+                    color = TerracottaPale,
+                    shadowElevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.md, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Terracotta.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) { Text("🗑️", fontSize = 16.sp) }
+                            Column {
+                                Text("Hapus Akun", fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium, color = Terracotta,
+                                    fontFamily = DmSansFamily)
+                                Text("Akun akan dinonaktifkan secara permanen", fontSize = 11.sp,
+                                    color = Terracotta.copy(alpha = 0.7f), fontFamily = DmSansFamily)
+                            }
+                        }
+                        Text("›", fontSize = 18.sp, color = Terracotta.copy(alpha = 0.5f), fontFamily = DmSansFamily)
+                    }
+                }
+
                 Spacer(Modifier.height(Spacing.lg))
             }
         }
@@ -469,6 +534,29 @@ fun PengaturanScreen(
             isSaving = actionState is PengaturanActionState.Loading,
             onDismiss = { showResetPasswordSheet = false },
             onSend = { email -> viewModel.requestPasswordReset(email.trim()) }
+        )
+    }
+
+    // ── Upgrade Subscription Sheet ─────────────────────────────────
+    if (showUpgradeSheet && upgradeTargetTier.isNotEmpty()) {
+        UpgradeSubscriptionSheet(
+            targetTier = upgradeTargetTier,
+            onDismiss = { showUpgradeSheet = false },
+            onUpload = { uri -> viewModel.uploadProofImage(uri) },
+            onSubmit = { tier, url -> viewModel.upgradeSubscription(tier, url) },
+            isUploading = actionState is PengaturanActionState.Loading,
+            isSubmitting = actionState is PengaturanActionState.Loading
+        )
+    }
+
+    // ── Delete Account Dialog ──────────────────────────────────────
+    if (showDeleteDialog) {
+        DeleteAccountDialog(
+            isDeleting = actionState is PengaturanActionState.Loading,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                viewModel.deleteAccount { onDeleteAccountSuccess() }
+            }
         )
     }
 }
@@ -595,6 +683,7 @@ private fun EditProfileSheet(
                 ),
                 shape = RoundedCornerShape(Radius.md)
             )
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text("STATUS / BIO", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
                 color = Charcoal60, fontFamily = DmSansFamily)
             OutlinedTextField(
@@ -611,6 +700,7 @@ private fun EditProfileSheet(
                 ),
                 shape = RoundedCornerShape(Radius.md)
             )
+            Spacer(modifier = Modifier.height(Spacing.md))
             Button(
                 onClick = { onSave(name, status) },
                 modifier = Modifier.fillMaxWidth(),
@@ -871,4 +961,121 @@ private fun ResetPasswordSheet(
             }
         }
     }
+}
+
+// ── DELETE ACCOUNT DIALOG ─────────────────────────────────────────
+@Composable
+private fun DeleteAccountDialog(
+    isDeleting: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    var step by remember { mutableIntStateOf(1) }
+    var confirmation by remember { mutableStateOf("") }
+    val isTypedCorrect = confirmation.trim().uppercase() == "HAPUS"
+
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        containerColor = Cream,
+        title = {
+            Text(
+                if (step == 1) "Hapus Akun?" else "Konfirmasi Penghapusan",
+                fontFamily = FrauncesFamily,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
+                color = Charcoal
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (step == 1) {
+                    Text(
+                        "Setelah dihapus, akunmu akan dinonaktifkan. Data listing dan riwayat tetap tersimpan di sistem kami.",
+                        fontFamily = DmSansFamily,
+                        fontSize = 13.sp,
+                        color = Charcoal60,
+                        lineHeight = 19.sp
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.md))
+                            .background(TerracottaPale)
+                            .padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("⚠️ Yang terjadi setelah penghapusan:", fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold, color = Terracotta, fontFamily = DmSansFamily)
+                        Text("• Email & nomor WA akan di-reset sistem", fontSize = 11.sp,
+                            color = Charcoal60, fontFamily = DmSansFamily)
+                        Text("• Kamu tidak bisa login dengan akun ini lagi", fontSize = 11.sp,
+                            color = Charcoal60, fontFamily = DmSansFamily)
+                        Text("• Kamu bisa daftar kembali dengan email yang sama", fontSize = 11.sp,
+                            color = Charcoal60, fontFamily = DmSansFamily)
+                    }
+                } else {
+                    Text(
+                        "Ketik HAPUS untuk mengonfirmasi penghapusan akun secara permanen.",
+                        fontFamily = DmSansFamily,
+                        fontSize = 13.sp,
+                        color = Charcoal60,
+                        lineHeight = 19.sp
+                    )
+                    OutlinedTextField(
+                        value = confirmation,
+                        onValueChange = { confirmation = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Ketik HAPUS", fontFamily = DmSansFamily) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Terracotta,
+                            unfocusedBorderColor = Charcoal30,
+                            cursorColor = Terracotta
+                        ),
+                        shape = RoundedCornerShape(Radius.md)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (step == 1) {
+                Button(
+                    onClick = { step = 2 },
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Terracotta)
+                ) {
+                    Text("Lanjut", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, color = Cream)
+                }
+            } else {
+                Button(
+                    onClick = onConfirm,
+                    enabled = isTypedCorrect && !isDeleting,
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Terracotta,
+                        disabledContainerColor = TerracottaPale
+                    )
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            color = Cream, strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        Text("Hapus Akun", fontFamily = DmSansFamily,
+                            fontWeight = FontWeight.Bold, color = Cream)
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = { if (step == 2) step = 1 else onDismiss() },
+                enabled = !isDeleting
+            ) {
+                Text(if (step == 2) "Kembali" else "Batal",
+                    fontFamily = DmSansFamily, color = Charcoal60)
+            }
+        }
+    )
 }

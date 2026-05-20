@@ -32,6 +32,10 @@ class DataStoreManager @Inject constructor(
         private val KEY_USER_WA_VERIFIED_AT = stringPreferencesKey("user_wa_verified_at")
         private val KEY_USER_AVATAR   = stringPreferencesKey("user_avatar")
         private val KEY_USER_STATUS   = stringPreferencesKey("user_status")
+        private val KEY_USER_TIER     = stringPreferencesKey("user_tier")
+        private val KEY_USER_BOOST_QUOTA = stringPreferencesKey("user_boost_quota")
+        private val KEY_USER_IS_BANNED = stringPreferencesKey("user_is_banned")
+        private val KEY_USER_TIER_EXPIRED_AT = stringPreferencesKey("user_tier_expired_at")
         private val KEY_SESSION_MESSAGE = stringPreferencesKey("session_message")
         private val KEY_ONBOARDING    = androidx.datastore.preferences.core.booleanPreferencesKey("has_seen_onboarding")
     }
@@ -52,6 +56,10 @@ class DataStoreManager @Inject constructor(
             user.waVerifiedAt?.let { prefs[KEY_USER_WA_VERIFIED_AT] = it } ?: prefs.remove(KEY_USER_WA_VERIFIED_AT)
             user.avatarUrl?.let { prefs[KEY_USER_AVATAR] = it } ?: prefs.remove(KEY_USER_AVATAR)
             user.status?.let { prefs[KEY_USER_STATUS] = it } ?: prefs.remove(KEY_USER_STATUS)
+            prefs[KEY_USER_TIER] = user.tier
+            prefs[KEY_USER_BOOST_QUOTA] = user.boostQuota.toString()
+            prefs[KEY_USER_IS_BANNED] = user.isBanned.toString()
+            user.tierExpiredAt?.let { prefs[KEY_USER_TIER_EXPIRED_AT] = it } ?: prefs.remove(KEY_USER_TIER_EXPIRED_AT)
         }
     }
 
@@ -95,6 +103,22 @@ class DataStoreManager @Inject constructor(
         prefs[KEY_USER_STATUS]
     }
 
+    val userTier: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_USER_TIER]
+    }
+
+    val userBoostQuota: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[KEY_USER_BOOST_QUOTA]?.toIntOrNull() ?: 0
+    }
+
+    val userIsBanned: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_USER_IS_BANNED]?.toBooleanStrictOrNull() == true
+    }
+
+    val userTierExpiredAt: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_USER_TIER_EXPIRED_AT]
+    }
+
     val sessionMessage: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[KEY_SESSION_MESSAGE]
     }
@@ -125,6 +149,10 @@ class DataStoreManager @Inject constructor(
             prefs.remove(KEY_USER_WA_VERIFIED_AT)
             prefs.remove(KEY_USER_AVATAR)
             prefs.remove(KEY_USER_STATUS)
+            prefs.remove(KEY_USER_TIER)
+            prefs.remove(KEY_USER_BOOST_QUOTA)
+            prefs.remove(KEY_USER_IS_BANNED)
+            prefs.remove(KEY_USER_TIER_EXPIRED_AT)
         }
     }
 
@@ -140,6 +168,10 @@ class DataStoreManager @Inject constructor(
             prefs.remove(KEY_USER_WA_VERIFIED_AT)
             prefs.remove(KEY_USER_AVATAR)
             prefs.remove(KEY_USER_STATUS)
+            prefs.remove(KEY_USER_TIER)
+            prefs.remove(KEY_USER_BOOST_QUOTA)
+            prefs.remove(KEY_USER_IS_BANNED)
+            prefs.remove(KEY_USER_TIER_EXPIRED_AT)
             prefs[KEY_SESSION_MESSAGE] = message
         }
     }

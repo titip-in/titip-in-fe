@@ -42,6 +42,13 @@ class AuthInterceptor @Inject constructor(
             runBlocking {
                 dataStore.expireSession("Sesi berakhir karena password berubah. Silakan login lagi.")
             }
+        } else if (response.code == 403) {
+            val bodyPreview = response.peekBody(4096).string()
+            if (bodyPreview.contains("banned", ignoreCase = true)) {
+                runBlocking {
+                    dataStore.expireSession("Akun kamu diblokir oleh administrator. Hubungi support Titip.in.")
+                }
+            }
         }
 
         return response

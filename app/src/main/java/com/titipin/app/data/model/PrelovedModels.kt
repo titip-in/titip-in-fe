@@ -19,6 +19,8 @@ data class PrelovedDto(
     @SerializedName("primary_image_url")
     val primaryImageUrlRaw: String? = null,  // field langsung dari API list
     val status: String,      // "AVAILABLE" | "SOLD" | "CLOSED"
+    @SerializedName("boosted_at")
+    val boostedAt: String? = null,
     @SerializedName("created_at")
     val createdAt: String? = null,
     @SerializedName("updated_at")

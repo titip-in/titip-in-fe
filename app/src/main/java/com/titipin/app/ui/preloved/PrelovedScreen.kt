@@ -27,11 +27,15 @@ import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierActiveLimit
+import com.titipin.app.data.model.tierImageLimit
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageWanted
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.components.LimitReachedDialog
+import com.titipin.app.ui.components.TierBadge
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -51,6 +55,7 @@ fun PrelovedScreen(
     val categoryState          by viewModel.categoryState.collectAsState()
     val selectedCategoryId     by viewModel.selectedCategoryId.collectAsState()
     val currentUserId          by viewModel.currentUserId.collectAsState()
+    val currentUserTier        by viewModel.currentUserTier.collectAsState()
 
     val requestListState       by prelovedRequestViewModel.listState.collectAsState()
     val requestActionState     by prelovedRequestViewModel.actionState.collectAsState()
@@ -58,6 +63,7 @@ fun PrelovedScreen(
     val requestCategoryState   by prelovedRequestViewModel.categoryState.collectAsState()
     val requestSelectedCatId   by prelovedRequestViewModel.selectedCategoryId.collectAsState()
     val requestCurrentUserId   by prelovedRequestViewModel.currentUserId.collectAsState()
+    val requestCurrentUserTier by prelovedRequestViewModel.currentUserTier.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -189,20 +195,22 @@ fun PrelovedScreen(
                 .background(Terracotta)
                 .clickable {
                     if (selectedTab == 0) {
+                        val activeLimit = tierActiveLimit(currentUserTier)
                         val activeMine = (listState as? PrelovedListState.Success)
                             ?.data
                             ?.count { it.userId?.toString() == currentUserId && it.status == "AVAILABLE" } ?: 0
-                        if (activeMine >= 5) {
-                            limitDialogMessage = "Kamu sudah punya 5 barang preloved aktif. Tutup salah satu barang dulu sebelum membuat listing baru."
+                        if (activeMine >= activeLimit) {
+                            limitDialogMessage = "Kamu sudah punya $activeLimit barang preloved aktif sesuai limit plan kamu. Tutup salah satu barang dulu atau upgrade plan."
                         } else {
                             showPrelovedSheet = true
                         }
                     } else {
+                        val activeLimit = tierActiveLimit(requestCurrentUserTier)
                         val activeMine = (requestListState as? PrelovedRequestListState.Success)
                             ?.data
                             ?.count { it.userId?.toString() == requestCurrentUserId && it.status == "OPEN" } ?: 0
-                        if (activeMine >= 5) {
-                            limitDialogMessage = "Kamu sudah punya 5 pencarian aktif. Tutup salah satu pencarian dulu sebelum membuat request baru."
+                        if (activeMine >= activeLimit) {
+                            limitDialogMessage = "Kamu sudah punya $activeLimit pencarian aktif sesuai limit plan kamu. Tutup salah satu pencarian dulu atau upgrade plan."
                         } else {
                             showRequestSheet = true
                         }
@@ -230,6 +238,7 @@ fun PrelovedScreen(
         ) {
             PrelovedFormContent(
                 viewModel = viewModel,
+                maxImages = tierImageLimit(currentUserTier),
                 onDismiss = {
                     scope.launch { prelovedSheetState.hide() }.invokeOnCompletion {
                         showPrelovedSheet = false
@@ -399,6 +408,13 @@ fun PrelovedBentoCard(
                             .padding(8.dp)
                     )
                 }
+                if (!item.boostedAt.isNullOrBlank()) {
+                    BoostedBadge(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    )
+                }
             }
 
             // ── INFO ──────────────────────────────────────────────
@@ -419,6 +435,7 @@ fun PrelovedBentoCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                TierBadge(item.user.tier, showBasic = false)
                 Spacer(Modifier.height(4.dp))
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -606,6 +623,8 @@ fun PrelovedRequestCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(item.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
                     Text("Mencari", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(item.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -624,6 +643,10 @@ fun PrelovedRequestCard(
             }
 
             Spacer(Modifier.height(10.dp))
+            if (!item.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(8.dp))
+            }
 
             // ── Judul barang ──────────────────────────────────────
             Text(

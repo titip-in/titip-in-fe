@@ -21,11 +21,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.PrelovedDto
 import com.titipin.app.data.model.PrelovedRequestDto
+import com.titipin.app.data.model.UserTier
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.normalizedTier
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierBoostLimit
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.preloved.EditPrelovedRequestSheet
 import com.titipin.app.ui.preloved.EditPrelovedSheet
@@ -155,6 +159,7 @@ fun PrelovedSayaScreen(
                 }
                 is PrelovedSayaState.Success -> {
                     val isActionLoading = actionState is PrelovedSayaActionState.Loading
+                    val user = state.user
 
                     when (selectedTab) {
                         // ── Tab 0: Dijual (AVAILABLE) ─────────────
@@ -176,6 +181,9 @@ fun PrelovedSayaScreen(
                                             onLihatDetail   = { onNavigateToDetail(item.id) },
                                             onEdit          = { viewModel.fetchPrelovedForEdit(item.id) },
                                             onMarkSold      = { viewModel.updateListingStatus(item.id, "SOLD") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostListing(item.id) },
                                             onHapus         = { viewModel.deleteListing(item.id) }
                                         )
                                     }
@@ -202,6 +210,9 @@ fun PrelovedSayaScreen(
                                             onClick         = { onNavigateToRequestDetail(req.id) },
                                             onEdit          = { editRequest = req },
                                             onTutup         = { viewModel.updateRequestStatus(req.id, "CLOSED") },
+                                            tier            = user?.tier,
+                                            boostQuota      = user?.boostQuota ?: 0,
+                                            onBoost         = { viewModel.boostRequest(req.id) },
                                             onHapus         = { viewModel.deleteRequest(req.id) }
                                         )
                                     }
@@ -294,6 +305,7 @@ fun PrelovedSayaScreen(
 }
 
 // ── PRELOVED LISTING CARD ─────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrelovedSayaCard(
     item: PrelovedDto,
@@ -303,11 +315,16 @@ private fun PrelovedSayaCard(
     onEdit: () -> Unit,
     onMarkSold: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSoldDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val isAvailable = item.status == "AVAILABLE"
 
     Card(
@@ -353,6 +370,10 @@ private fun PrelovedSayaCard(
                     }
                 }
                 Spacer(Modifier.height(2.dp))
+                if (!item.boostedAt.isNullOrBlank()) {
+                    BoostedBadge()
+                    Spacer(Modifier.height(4.dp))
+                }
                 Text(item.formattedPrice(), fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = Terracotta, fontFamily = DmSansFamily)
                 Spacer(Modifier.height(2.dp))
@@ -361,15 +382,18 @@ private fun PrelovedSayaCard(
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
-                    modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                         .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                         .padding(horizontal = 12.dp, vertical = 6.dp)) {
                         Text("🗑 Hapus", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                            fontWeight = FontWeight.Medium)
+                            fontWeight = FontWeight.Medium, maxLines = 1)
                     }
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                    Box(modifier = Modifier.widthIn(min = 72.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                         .clickable(enabled = !isActionLoading && !isEditLoading) { onEdit() }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center) {
@@ -380,11 +404,24 @@ private fun PrelovedSayaCard(
                             )
                         } else {
                             Text("✎ Edit", fontSize = 11.sp, color = Gold, fontFamily = DmSansFamily,
-                                fontWeight = FontWeight.Medium)
+                                fontWeight = FontWeight.Medium, maxLines = 1)
                         }
                     }
                     if (isAvailable && onMarkSold != null) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Terracotta)
+                        BoostActionButton(
+                            tier = tier,
+                            boostQuota = boostQuota,
+                            isBoosted = !item.boostedAt.isNullOrBlank(),
+                            isActionLoading = isActionLoading,
+                            onBoostClick = {
+                                if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                    showUpgradeDialog = true
+                                } else {
+                                    showBoostDialog = true
+                                }
+                            }
+                        )
+                        Box(modifier = Modifier.widthIn(min = 120.dp).clip(RoundedCornerShape(Radius.full)).background(Terracotta)
                             .clickable(enabled = !isActionLoading) { showSoldDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center) {
@@ -392,16 +429,16 @@ private fun PrelovedSayaCard(
                                 CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
                             } else {
                                 Text("✓ Tandai Terjual", fontSize = 11.sp, color = Cream,
-                                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }
                     if (onBuka != null) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                        Box(modifier = Modifier.widthIn(min = 92.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                             .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp)) {
                             Text("Buka Lagi", fontSize = 11.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
@@ -419,7 +456,11 @@ private fun PrelovedSayaCard(
     if (showSoldDialog && onMarkSold != null) {
         SayaDeleteDialog(
             title = "Tandai Terjual?",
-            message = "Barang ini akan masuk arsip dan tidak tampil sebagai barang tersedia.",
+            message = if (item.boostedAt.isNullOrBlank()) {
+                "Barang ini akan masuk arsip dan tidak tampil sebagai barang tersedia."
+            } else {
+                "Barang ini sedang dipromosikan. Menandai terjual akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tandai",
             onConfirm = { showSoldDialog = false; onMarkSold() },
             onDismiss = { showSoldDialog = false }
@@ -434,9 +475,32 @@ private fun PrelovedSayaCard(
             onDismiss = { showReopenDialog = false }
         )
     }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (item.boostedAt.isNullOrBlank()) "Boost Barang?" else "Boost Ulang Barang?",
+            message = if (item.boostedAt.isNullOrBlank()) {
+                "Barang ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Barang ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
+        )
+    }
 }
 
 // ── PRELOVED REQUEST CARD ─────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrelovedRequestSayaCard(
     request: PrelovedRequestDto,
@@ -445,11 +509,16 @@ private fun PrelovedRequestSayaCard(
     onEdit: () -> Unit,
     onTutup: (() -> Unit)?,
     onBuka: (() -> Unit)? = null,
+    tier: String? = null,
+    boostQuota: Int = 0,
+    onBoost: (() -> Unit)? = null,
     onHapus: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var showReopenDialog by remember { mutableStateOf(false) }
+    var showBoostDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
     val isOpen = request.status == "OPEN"
 
     Card(
@@ -475,6 +544,10 @@ private fun PrelovedRequestSayaCard(
                 }
             }
             Spacer(Modifier.height(4.dp))
+            if (!request.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(4.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val budget = request.formattedMaxPrice()
                 if (budget != null) {
@@ -496,22 +569,38 @@ private fun PrelovedRequestSayaCard(
             Spacer(Modifier.height(Spacing.sm))
             HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
             Spacer(Modifier.height(Spacing.sm))
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.widthIn(min = 82.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                     .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                     .clickable(enabled = !isActionLoading) { onEdit() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
                 if (onTutup != null && isOpen) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                    BoostActionButton(
+                        tier = tier,
+                        boostQuota = boostQuota,
+                        isBoosted = !request.boostedAt.isNullOrBlank(),
+                        isActionLoading = isActionLoading,
+                        onBoostClick = {
+                            if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                                showUpgradeDialog = true
+                            } else {
+                                showBoostDialog = true
+                            }
+                        }
+                    )
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
@@ -519,16 +608,16 @@ private fun PrelovedRequestSayaCard(
                             CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
                         } else {
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
                 if (onBuka != null) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                    Box(modifier = Modifier.widthIn(min = 96.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                         .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text("Buka Lagi", fontSize = 12.sp, color = Cream,
-                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }
@@ -545,7 +634,11 @@ private fun PrelovedRequestSayaCard(
     if (showCloseDialog && onTutup != null) {
         SayaDeleteDialog(
             title = "Tutup Pencarian?",
-            message = "Pencarian ini akan masuk arsip dan tidak tampil sebagai pencarian aktif.",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Pencarian ini akan masuk arsip dan tidak tampil sebagai pencarian aktif."
+            } else {
+                "Pencarian ini sedang dipromosikan. Menutup pencarian akan menghapus status promosi dan kuota boost tidak kembali."
+            },
             confirmLabel = "Tutup",
             onConfirm = { showCloseDialog = false; onTutup() },
             onDismiss = { showCloseDialog = false }
@@ -558,6 +651,28 @@ private fun PrelovedRequestSayaCard(
             confirmLabel = "Buka Lagi",
             onConfirm = { showReopenDialog = false; onBuka() },
             onDismiss = { showReopenDialog = false }
+        )
+    }
+    if (showBoostDialog && onBoost != null) {
+        SayaDeleteDialog(
+            title = if (request.boostedAt.isNullOrBlank()) "Boost Pencarian?" else "Boost Ulang Pencarian?",
+            message = if (request.boostedAt.isNullOrBlank()) {
+                "Pencarian ini akan dipromosikan dan memakai 1 kuota boost."
+            } else {
+                "Pencarian ini sudah dipromosikan. Boost ulang akan menaikkan posisinya lagi dan memakai 1 kuota boost."
+            },
+            confirmLabel = "Boost",
+            onConfirm = { showBoostDialog = false; onBoost() },
+            onDismiss = { showBoostDialog = false }
+        )
+    }
+    if (showUpgradeDialog) {
+        SayaDeleteDialog(
+            title = "Upgrade untuk Boost",
+            message = "Fitur boost tersedia untuk Titip Plus dan Pro. Plus mendapat 1 boost, Pro mendapat 5 boost per periode.",
+            confirmLabel = "Mengerti",
+            onConfirm = { showUpgradeDialog = false },
+            onDismiss = { showUpgradeDialog = false }
         )
     }
 }

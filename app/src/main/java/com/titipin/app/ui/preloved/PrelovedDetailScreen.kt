@@ -14,21 +14,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.titipin.app.data.model.UserTier
 import coil.compose.AsyncImage
 import com.titipin.app.data.model.conditionLabel
 import com.titipin.app.data.model.formattedPrice
+import com.titipin.app.data.model.normalizedTier
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierBoostLimit
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessagePreloved
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.UserContactPanel
 import com.titipin.app.ui.components.SupportPanel
+import com.titipin.app.ui.components.DetailImageGallery
 import com.titipin.app.ui.theme.*
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -42,6 +49,8 @@ fun PrelovedDetailScreen(
     val actionState by viewModel.actionState.collectAsState()
     val categoryState by viewModel.categoryState.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
+    val currentUserTier by viewModel.currentUserTier.collectAsState()
+    val currentBoostQuota by viewModel.currentBoostQuota.collectAsState()
     val context = LocalContext.current
 
     var limitReachedMsg by remember { mutableStateOf<String?>(null) }
@@ -64,6 +73,10 @@ fun PrelovedDetailScreen(
                 limitReachedMsg = (actionState as PrelovedActionState.LimitReached).message
                 viewModel.resetActionState()
             }
+            is PrelovedActionState.Error -> {
+                limitReachedMsg = (actionState as PrelovedActionState.Error).message
+                viewModel.resetActionState()
+            }
             else -> Unit
         }
     }
@@ -72,7 +85,25 @@ fun PrelovedDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Cream)
+            .statusBarsPadding()
     ) {
+        // ── TOP BAR ───────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Kembali", tint = Charcoal)
+            }
+            Text(
+                text = "DETAIL PRELOVED",
+                fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp, fontFamily = DmSansFamily, color = Charcoal60
+            )
+        }
+
         when (val state = detailState) {
             is PrelovedActionState.Loading, is PrelovedActionState.Idle -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -97,121 +128,23 @@ fun PrelovedDetailScreen(
                 val item = state.data ?: return@Column
                 val categoryLabel = item.category?.name ?: "Lainnya"
                 val categoryEmoji = item.category?.icon ?: categoryEmojiFor(categoryLabel)
-                val primaryImageUrl = item.primaryImageUrl()
                 val isOwner = currentUserId == item.userId?.toString()
 
-                val heroBg = when (item.condition) {
-                    "NEW", "LIKE_NEW" -> SagePale
-                    "GOOD"            -> GoldPale
-                    else              -> TerracottaPale
-                }
-
-                // Simulasi beberapa foto (nanti dari imageUrl)
-                // Sekarang 1 halaman saja karena BE return 1 imageUrl
-                val pageCount = 1
-                val pagerState = rememberPagerState { pageCount }
-
-                // ── HERO — CAROUSEL ───────────────────────────────
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                ) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(heroBg),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (primaryImageUrl.isNullOrBlank()) {
-                                Text(categoryEmoji, fontSize = 80.sp)
-                            } else {
-                                AsyncImage(
-                                    model = primaryImageUrl,
-                                    contentDescription = item.title,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                    }
-
-                    // Back button
-                    Box(
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .padding(12.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Cream.copy(alpha = 0.9f))
-                            .clickable { onBack() }
-                            .align(Alignment.TopStart),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("←", fontSize = 16.sp, color = Charcoal)
-                    }
-
-                    // Kondisi badge kanan atas
-                    val (condBg, condColor) = when (item.condition) {
-                        "NEW", "LIKE_NEW" -> SagePale to Sage
-                        else -> CreamDark to Charcoal60
-                    }
-                    Box(
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .padding(12.dp)
-                            .align(Alignment.TopEnd)
-                            .clip(RoundedCornerShape(Radius.full))
-                            .background(condBg)
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            item.conditionLabel().uppercase(),
-                            fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                            color = condColor, fontFamily = DmSansFamily, letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    // Dot indicator carousel
-                    if (pageCount > 1) {
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            repeat(pageCount) { index ->
-                                Box(
-                                    modifier = Modifier
-                                        .then(
-                                            if (pagerState.currentPage == index)
-                                                Modifier.width(16.dp).height(4.dp)
-                                            else
-                                                Modifier.size(4.dp)
-                                        )
-                                        .clip(RoundedCornerShape(Radius.full))
-                                        .background(
-                                            if (pagerState.currentPage == index) Terracotta
-                                            else Terracotta.copy(alpha = 0.3f)
-                                        )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── KONTEN ────────────────────────────────────────
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(Spacing.lg),
+                        .padding(horizontal = Spacing.lg),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
+                    Spacer(Modifier.height(Spacing.sm))
+
+                    DetailImageGallery(
+                        images = item.images.orEmpty(),
+                        contentDescription = item.title
+                    )
+
+                    Spacer(Modifier.height(Spacing.sm))
                     // Judul + Harga
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -235,9 +168,11 @@ fun PrelovedDetailScreen(
                     // Tags
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         PrelovedTag("$categoryEmoji $categoryLabel")
+                        PrelovedTag(item.conditionLabel().uppercase())
                         if (item.status == "AVAILABLE") PrelovedTag("✓ Tersedia")
                         else if (item.status == "SOLD")  PrelovedTag("✕ Terjual")
                         else if (item.status == "CLOSED") PrelovedTag("Ditutup")
+                        if (!item.boostedAt.isNullOrBlank()) BoostedBadge()
                     }
 
                     UserContactPanel(
@@ -247,7 +182,8 @@ fun PrelovedDetailScreen(
                         status = item.user.status,
                         isOwner = isOwner,
                         ownerLabel = "Ini barang Anda",
-                        message = waMessagePreloved(item.title, item.formattedPrice())
+                        message = waMessagePreloved(item.title, item.formattedPrice()),
+                        onChatWaClick = { viewModel.trackPrelovedClick(item.id) }
                     )
 
                     // Deskripsi
@@ -269,6 +205,10 @@ fun PrelovedDetailScreen(
                         PrelovedOwnerPanel(
                             status = item.status,
                             isLoading = actionState is PrelovedActionState.Loading,
+                            tier = currentUserTier,
+                            boostQuota = currentBoostQuota,
+                            isBoosted = !item.boostedAt.isNullOrBlank(),
+                            onBoost = { viewModel.boostPreloved(item.id) },
                             onMarkSold = { viewModel.updateStatus(item.id, "SOLD") },
                             onToggleClosed = {
                                 val nextStatus = if (item.status == "AVAILABLE") "CLOSED" else "AVAILABLE"
@@ -296,6 +236,7 @@ fun PrelovedDetailScreen(
                 ) {
                     Button(
                         onClick = {
+                            viewModel.trackPrelovedClick(item.id)
                             openWhatsApp(
                                 context, item.user.waNumber,
                                 waMessagePreloved(item.title, item.formattedPrice())
@@ -359,6 +300,10 @@ private fun PrelovedTag(text: String) {
 private fun PrelovedOwnerPanel(
     status: String,
     isLoading: Boolean,
+    tier: String,
+    boostQuota: Int,
+    isBoosted: Boolean,
+    onBoost: () -> Unit,
     onMarkSold: () -> Unit,
     onToggleClosed: () -> Unit,
     onEdit: () -> Unit,
@@ -366,6 +311,8 @@ private fun PrelovedOwnerPanel(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showStatusConfirm by remember { mutableStateOf<String?>(null) } // null, "SOLD", "CLOSED", "AVAILABLE"
+    var showBoostConfirm by remember { mutableStateOf(false) }
+    var showUpgradeInfo by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -380,6 +327,26 @@ private fun PrelovedOwnerPanel(
             fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
             color = Charcoal60, fontFamily = DmSansFamily
         )
+        Button(
+            onClick = {
+                if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                    showUpgradeInfo = true
+                } else {
+                    showBoostConfirm = true
+                }
+            },
+            enabled = !isLoading && status == "AVAILABLE",
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radius.full),
+            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Cream)
+        ) {
+            Text(
+                text = if (isBoosted) "Boost Ulang Barang" else "Boost Barang",
+                fontFamily = DmSansFamily,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (status == "AVAILABLE") {
                 Button(
@@ -432,6 +399,42 @@ private fun PrelovedOwnerPanel(
                 Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
             }
         }
+    }
+
+    if (showBoostConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBoostConfirm = false },
+            containerColor = Cream,
+            title = { Text(if (isBoosted) "Boost Ulang Barang?" else "Boost Barang?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Aksi ini memakai 1 kuota boost dan menaikkan barang ke prioritas atas.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBoostConfirm = false
+                    onBoost()
+                }) {
+                    Text("Boost", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBoostConfirm = false }) {
+                    Text("Batal", color = Charcoal60, fontFamily = DmSansFamily)
+                }
+            }
+        )
+    }
+
+    if (showUpgradeInfo) {
+        AlertDialog(
+            onDismissRequest = { showUpgradeInfo = false },
+            containerColor = Cream,
+            title = { Text("Upgrade untuk Boost", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Boost tersedia untuk Titip Plus dan Pro. Cek halaman Profil untuk upgrade via WhatsApp admin.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = { showUpgradeInfo = false }) {
+                    Text("Mengerti", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            }
+        )
     }
 
     if (showStatusConfirm != null) {

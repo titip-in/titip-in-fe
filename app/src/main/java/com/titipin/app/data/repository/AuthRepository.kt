@@ -228,6 +228,38 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun upgradeSubscription(tier: String, paymentProofUrl: String): Result<Unit> {
+        return try {
+            val response = apiService.upgradeSubscription(
+                UpgradeSubscriptionRequest(tier = tier, paymentProofUrl = paymentProofUrl)
+            )
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal mengirim permintaan upgrade")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
+
+    /**
+     * Soft delete akun user. Backend akan rename email & WA.
+     * FE wajib clear local storage setelah response 200.
+     */
+    suspend fun deleteAccount(): Result<Unit> {
+        return try {
+            val response = apiService.deleteAccount()
+            if (response.isSuccessful && response.body()?.success == true) {
+                dataStore.clearAuthData()
+                Result.Success(Unit)
+            } else {
+                response.toResultError("Gagal menghapus akun")
+            }
+        } catch (e: Exception) {
+            Result.Error("Tidak bisa terhubung ke server.")
+        }
+    }
 
 
     // "085750..." → "6285750..."

@@ -21,6 +21,7 @@ object Routes {
     const val PRELOVED_SAYA           = "preloved_saya"
     const val REVIEW_RATING           = "review_rating"
     const val PENGATURAN              = "pengaturan"
+    const val ANALYTICS               = "analytics"
 
     // Offer screen: from, to, requesterName, notes (optional)
     const val JASTIP_OFFER_PATTERN = "jastip_offer?from={from}&to={to}&name={name}&notes={notes}"

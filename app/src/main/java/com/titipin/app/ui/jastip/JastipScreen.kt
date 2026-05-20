@@ -22,6 +22,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.titipin.app.data.model.JastipDto
 import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.primaryImageUrl
+import com.titipin.app.data.model.tierActiveLimit
+import com.titipin.app.data.model.tierImageLimit
 import com.titipin.app.shared.formatDeadlineDisplay
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.TitipinPullRefresh
@@ -29,8 +31,10 @@ import com.titipin.app.shared.timeAgo
 import com.titipin.app.shared.waMessageJastip
 import com.titipin.app.shared.waMessageTakeRequest
 import com.titipin.app.ui.components.CategoryChipRow
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.StatusBadge
+import com.titipin.app.ui.components.TierBadge
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -49,6 +53,7 @@ fun JastipScreen(
     val categoryState by viewModel.categoryState.collectAsState()
     val selectedCategoryId by viewModel.selectedCategoryId.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
+    val currentUserTier by viewModel.currentUserTier.collectAsState()
 
     val requestListState by requestViewModel.listState.collectAsState()
     val requestActionState by requestViewModel.actionState.collectAsState()
@@ -56,6 +61,7 @@ fun JastipScreen(
     val requestCategoryState by requestViewModel.categoryState.collectAsState()
     val selectedRequestCategoryId by requestViewModel.selectedCategoryId.collectAsState()
     val requestCurrentUserId by requestViewModel.currentUserId.collectAsState()
+    val requestCurrentUserTier by requestViewModel.currentUserTier.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -218,20 +224,22 @@ fun JastipScreen(
                     .background(Terracotta)
                     .clickable {
                         if (selectedTab == 0) {
+                            val activeLimit = tierActiveLimit(currentUserTier)
                             val activeMine = (listState as? JastipListState.Success)
                                 ?.data
                                 ?.count { it.userId == currentUserId && it.status == "ACTIVE" } ?: 0
-                            if (activeMine >= 5) {
-                                limitDialogMessage = "Kamu sudah punya 5 jastip aktif. Tutup salah satu jastip dulu sebelum membuat yang baru."
+                            if (activeMine >= activeLimit) {
+                                limitDialogMessage = "Kamu sudah punya $activeLimit jastip aktif sesuai limit plan kamu. Tutup salah satu jastip dulu atau upgrade plan."
                             } else {
                                 showJastipSheet = true
                             }
                         } else {
+                            val activeLimit = tierActiveLimit(requestCurrentUserTier)
                             val activeMine = (requestListState as? RequestListState.Success)
                                 ?.data
                                 ?.count { it.userId?.toString() == requestCurrentUserId && it.status == "OPEN" } ?: 0
-                            if (activeMine >= 5) {
-                                limitDialogMessage = "Kamu sudah punya 5 request jastip aktif. Tutup salah satu request dulu sebelum membuat yang baru."
+                            if (activeMine >= activeLimit) {
+                                limitDialogMessage = "Kamu sudah punya $activeLimit request jastip aktif sesuai limit plan kamu. Tutup salah satu request dulu atau upgrade plan."
                             } else {
                                 showRequestSheet = true
                             }
@@ -261,6 +269,7 @@ fun JastipScreen(
             ) {
                 JastipFormContent(
                     viewModel = viewModel,
+                    maxImages = tierImageLimit(currentUserTier),
                     onDismiss = {
                         scope.launch { jastipSheetState.hide() }.invokeOnCompletion {
                             showJastipSheet = false
@@ -561,6 +570,8 @@ fun RequestCard(
                         text = createdAtLabel,
                         fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
                     )
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(request.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -572,6 +583,10 @@ fun RequestCard(
             }
 
             Spacer(Modifier.height(Spacing.sm))
+            if (!request.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(Spacing.sm))
+            }
 
             // ── Title ───────────────
             Text(
@@ -753,6 +768,8 @@ fun JastipCard(
                         color = Charcoal60,
                         fontFamily = DmSansFamily
                     )
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(jastip.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -780,6 +797,10 @@ fun JastipCard(
             }
 
             Spacer(Modifier.height(Spacing.sm))
+            if (!jastip.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(Spacing.sm))
+            }
 
             Text(
                 text = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },

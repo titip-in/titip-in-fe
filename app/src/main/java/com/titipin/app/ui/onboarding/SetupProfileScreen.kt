@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.titipin.app.ui.components.AvatarCropDialog
 import com.titipin.app.ui.auth.TitipinTextField
 import com.titipin.app.ui.profile.ProfileUiState
 import com.titipin.app.ui.profile.ProfileViewModel
@@ -48,11 +49,17 @@ fun SetupProfileScreen(
     var waNumber by remember(user?.id) { mutableStateOf(user?.waNumber.orEmpty()) }
     var status by remember(user?.id) { mutableStateOf(user?.status.orEmpty()) }
     var localAvatarUri by remember { mutableStateOf<Uri?>(null) }
+    var avatarCropUri by remember { mutableStateOf<Uri?>(null) }
     var showOtpDialog by remember { mutableStateOf(false) }
     var otp by remember { mutableStateOf("") }
     var otpCooldown by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var shouldFinishAfterSave by remember { mutableStateOf(false) }
+    var showWaRequirementDialog by remember { mutableStateOf(false) }
+    var hasShownWaRequirementDialog by remember(user?.id) { mutableStateOf(false) }
+    val emailVerified = !user?.emailVerifiedAt.isNullOrBlank()
+    val waVerified = !user?.waVerifiedAt.isNullOrBlank()
+    val canSave = emailVerified && waVerified && name.isNotBlank() && !isUploadingAvatar && !isUpdatingProfile
 
     LaunchedEffect(otpCooldown) {
         if (otpCooldown > 0) {
@@ -69,19 +76,25 @@ fun SetupProfileScreen(
         }
     }
 
+    LaunchedEffect(user?.id, user?.waVerifiedAt) {
+        if (user != null && user.waVerifiedAt.isNullOrBlank() && !hasShownWaRequirementDialog) {
+            hasShownWaRequirementDialog = true
+            showWaRequirementDialog = true
+        }
+    }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             if (uri != null) {
-                localAvatarUri = uri
-                viewModel.uploadAvatar(uri)
+                if (waVerified) {
+                    avatarCropUri = uri
+                } else {
+                    showWaRequirementDialog = true
+                }
             }
         }
     )
-
-    val emailVerified = !user?.emailVerifiedAt.isNullOrBlank()
-    val waVerified = !user?.waVerifiedAt.isNullOrBlank()
-    val canSave = emailVerified && waVerified && name.isNotBlank() && !isUploadingAvatar && !isUpdatingProfile
 
     Column(
         modifier = Modifier
@@ -118,7 +131,11 @@ fun SetupProfileScreen(
                 .clip(CircleShape)
                 .background(CreamDark)
                 .clickable {
-                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    if (waVerified) {
+                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    } else {
+                        showWaRequirementDialog = true
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -327,6 +344,73 @@ fun SetupProfileScreen(
                 }
             },
             containerColor = Cream
+        )
+    }
+
+    avatarCropUri?.let { uri ->
+        AvatarCropDialog(
+            imageUri = uri,
+            onDismiss = { avatarCropUri = null },
+            onCrop = { bitmap ->
+                localAvatarUri = uri
+                avatarCropUri = null
+                viewModel.uploadAvatarBitmap(bitmap)
+            }
+        )
+    }
+
+    if (showWaRequirementDialog) {
+        AlertDialog(
+            onDismissRequest = { showWaRequirementDialog = false },
+            containerColor = Cream,
+            shape = RoundedCornerShape(Radius.xl),
+            title = {
+                Text("Verifikasi WhatsApp Dulu", fontFamily = FrauncesFamily, color = Charcoal)
+            },
+            text = {
+                Text(
+                    "Untuk lanjut ke dashboard dan upload foto profil, nomor WhatsApp kamu harus terverifikasi dulu. Isi nomor WA, lalu masukkan OTP yang dikirim.",
+                    fontFamily = DmSansFamily,
+                    fontSize = 13.sp,
+                    color = Charcoal60,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (waNumber.trim().length >= 10) {
+                            viewModel.requestWaOtpForNumber(waNumber.trim()) { success, text ->
+                                message = text
+                                if (success) {
+                                    otp = ""
+                                    otpCooldown = 60
+                                    showWaRequirementDialog = false
+                                    showOtpDialog = true
+                                }
+                            }
+                        } else {
+                            message = "Isi nomor WhatsApp yang valid dulu."
+                            showWaRequirementDialog = false
+                        }
+                    },
+                    enabled = !isUpdatingProfile && otpCooldown == 0,
+                    shape = RoundedCornerShape(Radius.full),
+                    colors = ButtonDefaults.buttonColors(containerColor = Charcoal)
+                ) {
+                    Text(
+                        if (otpCooldown > 0) "Tunggu ${otpCooldown}s" else "Kirim OTP",
+                        fontFamily = DmSansFamily,
+                        color = Cream,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWaRequirementDialog = false }) {
+                    Text("Isi Manual", fontFamily = DmSansFamily, color = Charcoal60)
+                }
+            }
         )
     }
 }

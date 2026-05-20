@@ -39,6 +39,7 @@ import com.titipin.app.ui.profile.JastipSayaScreen
 import com.titipin.app.ui.profile.PengaturanScreen
 import com.titipin.app.ui.profile.PrelovedSayaScreen
 import com.titipin.app.ui.profile.ProfileScreen
+import com.titipin.app.ui.profile.AnalyticsScreen
 import com.titipin.app.ui.profile.ReviewRatingScreen
 import com.titipin.app.ui.splash.SplashScreen
 import com.titipin.app.ui.theme.*
@@ -75,6 +76,7 @@ val routesWithoutBottomNav = listOf(
     Routes.PRELOVED_SAYA,
     Routes.REVIEW_RATING,
     Routes.PENGATURAN,
+    Routes.ANALYTICS,
     Routes.JASTIP_OFFER_PATTERN,
 )
 
@@ -200,7 +202,10 @@ fun TitipinNavGraph(
                     onNavigateToJastip      = { navController.navigate(Routes.JASTIP) },
                     onNavigateToPreloved    = { navController.navigate(Routes.PRELOVED) },
                     onNavigateToJastipDetail = { id -> navController.navigate(Routes.jastipDetail(id)) },
+                    onNavigateToJastipRequestDetail = { id -> navController.navigate(Routes.jastipRequestDetail(id)) },
                     onNavigateToPrelovedDetail = { id -> navController.navigate(Routes.prelovedDetail(id)) },
+                    onNavigateToPrelovedRequestDetail = { id -> navController.navigate(Routes.prelovedRequestDetail(id)) },
+                    onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
                     onNavigateToPengaturan  = { navController.navigate(Routes.PENGATURAN) }
                 )
             }
@@ -224,7 +229,8 @@ fun TitipinNavGraph(
                     onNavigateToJastipSaya   = { navController.navigate(Routes.JASTIP_SAYA) },
                     onNavigateToPrelovedSaya = { navController.navigate(Routes.PRELOVED_SAYA) },
                     onNavigateToReview       = { navController.navigate(Routes.REVIEW_RATING) },
-                    onNavigateToPengaturan   = { navController.navigate(Routes.PENGATURAN) }
+                    onNavigateToPengaturan   = { navController.navigate(Routes.PENGATURAN) },
+                    onNavigateToAnalytics    = { navController.navigate(Routes.ANALYTICS) }
                 )
             }
 
@@ -257,7 +263,23 @@ fun TitipinNavGraph(
             }
 
             composable(Routes.PENGATURAN) {
-                PengaturanScreen(onBack = { navController.popBackStack() })
+                PengaturanScreen(
+                    onBack = { navController.popBackStack() },
+                    onDeleteAccountSuccess = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.ANALYTICS) { backStackEntry ->
+                // Pass tier dari parent back stack jika tersedia
+                val tier = backStackEntry.arguments?.getString("tier") ?: ""
+                AnalyticsScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToUpgrade = { navController.navigate(Routes.PROFILE) }
+                )
             }
 
             // JastipScreen sekarang handle bottom sheet sendiri di dalamnya

@@ -46,7 +46,8 @@ fun UserContactPanel(
     avatarUrl: String? = null,
     isOwner: Boolean = false,
     ownerLabel: String = "Ini listing Anda",
-    message: String = ""
+    message: String = "",
+    onChatWaClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     Row(
@@ -86,7 +87,10 @@ fun UserContactPanel(
 
         if (!isOwner && !waNumber.isNullOrBlank()) {
             Button(
-                onClick = { openWhatsApp(context, waNumber, message) },
+                onClick = {
+                    onChatWaClick?.invoke() // fire-and-forget tracking
+                    openWhatsApp(context, waNumber, message)
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Terracotta,
                     contentColor = Cream

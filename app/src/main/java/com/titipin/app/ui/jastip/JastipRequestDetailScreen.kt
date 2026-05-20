@@ -254,7 +254,8 @@ fun JastipRequestDetailScreen(
                         status = request.user.status,
                         isOwner = isOwner,
                         ownerLabel = "Ini request Anda",
-                        message = message
+                        message = message,
+                        onChatWaClick = { viewModel.trackJastipRequestClick(request.id) }
                     )
 
                     if (isOwner) {
@@ -288,6 +289,7 @@ fun JastipRequestDetailScreen(
                     Button(
                         onClick = {
                             if (!isOwner) {
+                                viewModel.trackJastipRequestClick(request.id)
                                 openWhatsApp(context, request.user.waNumber, message)
                             }
                         },

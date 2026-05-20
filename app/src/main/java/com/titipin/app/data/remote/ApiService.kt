@@ -101,6 +101,9 @@ interface ApiService {
     @DELETE("v1/jastip/listings/{id}")
     suspend fun deleteJastip(@Path("id") id: String): Response<ApiResponse<Unit>>
 
+    @POST("v1/jastip/listings/{id}/boost")
+    suspend fun boostJastipListing(@Path("id") id: String): Response<ApiResponse<BoostResponse>>
+
     // ── PRELOVED ──────────────────────────────────────────────────
     @GET("v1/preloved/listings")
     suspend fun getPrelovedList(): Response<ApiResponse<List<PrelovedDto>>>
@@ -129,6 +132,9 @@ interface ApiService {
     @DELETE("v1/preloved/listings/{id}")
     suspend fun deletePreloved(@Path("id") id: String): Response<ApiResponse<Unit>>
 
+    @POST("v1/preloved/listings/{id}/boost")
+    suspend fun boostPrelovedListing(@Path("id") id: String): Response<ApiResponse<BoostResponse>>
+
     // ── REQUESTS (Cari Jastip) ────────────────────────────────────
     @GET("v1/jastip/requests")
     suspend fun getRequestList(): Response<ApiResponse<List<RequestDto>>>
@@ -151,6 +157,9 @@ interface ApiService {
     @DELETE("v1/jastip/requests/{id}")
     suspend fun deleteRequest(@Path("id") id: String): Response<ApiResponse<Unit>>
 
+    @POST("v1/jastip/requests/{id}/boost")
+    suspend fun boostJastipRequest(@Path("id") id: String): Response<ApiResponse<BoostResponse>>
+
     // ── PRELOVED REQUESTS (Barang Dicari) ────────────────────────
     @GET("v1/preloved/requests")
     suspend fun getPrelovedRequestList(): Response<ApiResponse<List<PrelovedRequestDto>>>
@@ -172,4 +181,27 @@ interface ApiService {
 
     @DELETE("v1/preloved/requests/{id}")
     suspend fun deletePrelovedRequest(@Path("id") id: String): Response<ApiResponse<Unit>>
+
+    @POST("v1/preloved/requests/{id}/boost")
+    suspend fun boostPrelovedRequest(@Path("id") id: String): Response<ApiResponse<BoostResponse>>
+
+    // ── ANALYTICS ─────────────────────────────────────────────────
+    @POST("v1/items/{type}/{id}/click")
+    suspend fun trackClick(
+        @Path("type") type: String,
+        @Path("id") id: String
+    ): Response<ApiResponse<Unit>>
+
+    @GET("v1/me/analytics")
+    suspend fun getAnalytics(): Response<ApiResponse<AnalyticsData>>
+
+    // ── SUBSCRIPTION ───────────────────────────────────────────────
+    @POST("v1/me/subscriptions/upgrade")
+    suspend fun upgradeSubscription(
+        @Body request: UpgradeSubscriptionRequest
+    ): Response<ApiResponse<Unit>>
+
+    // ── DELETE ACCOUNT ─────────────────────────────────────────────
+    @DELETE("v1/me")
+    suspend fun deleteAccount(): Response<ApiResponse<Unit>>
 }
