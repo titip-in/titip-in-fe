@@ -27,6 +27,13 @@ sealed class ProfileUiState {
     data class Error(val message: String) : ProfileUiState()
 }
 
+sealed class ProfileActionState {
+    object Idle : ProfileActionState()
+    object Loading : ProfileActionState()
+    data class Success(val message: String) : ProfileActionState()
+    data class Error(val message: String) : ProfileActionState()
+}
+
 data class ProfileUsage(
     val activeJastipListings: Int = 0,
     val activeJastipRequests: Int = 0,
@@ -56,6 +63,11 @@ class ProfileViewModel @Inject constructor(
 
     private val _isUpdatingProfile = MutableStateFlow(false)
     val isUpdatingProfile: StateFlow<Boolean> = _isUpdatingProfile.asStateFlow()
+
+    private val _actionState = MutableStateFlow<ProfileActionState>(ProfileActionState.Idle)
+    val actionState: StateFlow<ProfileActionState> = _actionState.asStateFlow()
+
+    fun resetActionState() { _actionState.value = ProfileActionState.Idle }
 
     init { loadProfile() }
 
@@ -221,6 +233,23 @@ class ProfileViewModel @Inject constructor(
                 is Result.Success -> onComplete(true, "Email verifikasi sudah dikirim ulang")
                 is Result.Error -> onComplete(false, result.message)
             }
+        }
+    }
+
+    fun upgradeSubscription(tier: String, paymentProofUrl: String) {
+        viewModelScope.launch {
+            _actionState.value = ProfileActionState.Loading
+            _actionState.value = when (val result = authRepository.upgradeSubscription(tier, paymentProofUrl)) {
+                is Result.Success -> ProfileActionState.Success("Permintaan upgrade berhasil dikirim! Admin akan memproses dalam 1×24 jam.")
+                is Result.Error   -> ProfileActionState.Error(result.message)
+            }
+        }
+    }
+
+    suspend fun uploadProofImage(uri: Uri): String? {
+        return when (val result = uploadRepository.uploadImage(uri)) {
+            is Result.Success -> result.data
+            is Result.Error   -> null
         }
     }
 }

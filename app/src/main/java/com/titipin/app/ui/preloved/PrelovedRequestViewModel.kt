@@ -8,6 +8,7 @@ import com.titipin.app.data.model.PrelovedRequestDto
 import com.titipin.app.data.model.UpdatePrelovedRequestBody
 import com.titipin.app.data.model.UserTier
 import com.titipin.app.data.model.normalizedTier
+import com.titipin.app.data.repository.AnalyticsRepository
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.PrelovedRequestRepository
 import com.titipin.app.data.repository.Result
@@ -45,7 +46,8 @@ sealed class PrelovedRequestActionState {
 class PrelovedRequestViewModel @Inject constructor(
     private val repository: PrelovedRequestRepository,
     private val categoryRepository: CategoryRepository,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val analyticsRepository: AnalyticsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<PrelovedRequestListState>(PrelovedRequestListState.Loading)
@@ -185,5 +187,10 @@ class PrelovedRequestViewModel @Inject constructor(
 
     fun resetActionState() {
         _actionState.value = PrelovedRequestActionState.Idle
+    }
+
+    /** Fire-and-forget: catat klik WA pada preloved request */
+    fun trackPrelovedRequestClick(id: String) {
+        analyticsRepository.trackClick("preloved_request", id)
     }
 }

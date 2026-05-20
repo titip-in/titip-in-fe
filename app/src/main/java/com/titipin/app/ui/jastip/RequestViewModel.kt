@@ -8,6 +8,7 @@ import com.titipin.app.data.model.RequestDto
 import com.titipin.app.data.model.UpdateRequestBody
 import com.titipin.app.data.model.UserTier
 import com.titipin.app.data.model.normalizedTier
+import com.titipin.app.data.repository.AnalyticsRepository
 import com.titipin.app.data.repository.CategoryRepository
 import com.titipin.app.data.repository.RequestRepository
 import com.titipin.app.data.repository.Result
@@ -44,7 +45,8 @@ sealed class RequestCategoryState {
 class RequestViewModel @Inject constructor(
     private val repository: RequestRepository,
     private val categoryRepository: CategoryRepository,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val analyticsRepository: AnalyticsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<RequestListState>(RequestListState.Loading)
@@ -203,4 +205,9 @@ class RequestViewModel @Inject constructor(
     }
 
     fun resetActionState() { _actionState.value = RequestActionState.Idle }
+
+    /** Fire-and-forget: catat klik WA pada jastip request */
+    fun trackJastipRequestClick(id: String) {
+        analyticsRepository.trackClick("jastip_request", id)
+    }
 }

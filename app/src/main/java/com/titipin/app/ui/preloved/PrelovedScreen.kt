@@ -32,8 +32,10 @@ import com.titipin.app.data.model.tierImageLimit
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageWanted
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.CategoryChipRow
 import com.titipin.app.ui.components.LimitReachedDialog
+import com.titipin.app.ui.components.TierBadge
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -406,6 +408,13 @@ fun PrelovedBentoCard(
                             .padding(8.dp)
                     )
                 }
+                if (!item.boostedAt.isNullOrBlank()) {
+                    BoostedBadge(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    )
+                }
             }
 
             // ── INFO ──────────────────────────────────────────────
@@ -426,6 +435,7 @@ fun PrelovedBentoCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                TierBadge(item.user.tier, showBasic = false)
                 Spacer(Modifier.height(4.dp))
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -613,6 +623,8 @@ fun PrelovedRequestCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(item.user.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Charcoal, fontFamily = DmSansFamily)
                     Text("Mencari", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily)
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(item.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -631,6 +643,10 @@ fun PrelovedRequestCard(
             }
 
             Spacer(Modifier.height(10.dp))
+            if (!item.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(8.dp))
+            }
 
             // ── Judul barang ──────────────────────────────────────
             Text(

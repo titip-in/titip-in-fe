@@ -173,4 +173,31 @@ class PengaturanViewModel @Inject constructor(
     }
 
     fun resetActionState() { _actionState.value = PengaturanActionState.Idle }
+
+    fun upgradeSubscription(tier: String, paymentProofUrl: String) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            _actionState.value = when (val result = authRepository.upgradeSubscription(tier, paymentProofUrl)) {
+                is Result.Success -> PengaturanActionState.Success("Permintaan upgrade berhasil dikirim! Admin akan memproses dalam 1\u00d724 jam.")
+                is Result.Error   -> PengaturanActionState.Error(result.message)
+            }
+        }
+    }
+
+    suspend fun uploadProofImage(uri: android.net.Uri): String? {
+        return when (val result = uploadRepository.uploadImage(uri)) {
+            is Result.Success -> result.data
+            is Result.Error   -> null
+        }
+    }
+
+    fun deleteAccount(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _actionState.value = PengaturanActionState.Loading
+            when (val result = authRepository.deleteAccount()) {
+                is Result.Success -> onSuccess()
+                is Result.Error   -> _actionState.value = PengaturanActionState.Error(result.message)
+            }
+        }
+    }
 }

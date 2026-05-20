@@ -42,6 +42,7 @@ import com.titipin.app.data.model.formattedMaxPrice
 import com.titipin.app.data.model.primaryImageUrl
 import com.titipin.app.shared.TitipinPullRefresh
 import com.titipin.app.shared.timeAgo
+import com.titipin.app.ui.components.HomePlanBanner
 import com.titipin.app.ui.theme.*
 
 @Composable
@@ -284,6 +285,19 @@ fun HomeScreen(
                                 }
                             }
                         }
+                    }
+
+                    if (!uiState.isLoading) {
+                        Spacer(Modifier.height(Spacing.md))
+                        HomePlanBanner(
+                            tier = uiState.userTier,
+                            boostQuota = uiState.userBoostQuota,
+                            activeLimit = uiState.activeLimit,
+                            activeCount = uiState.activeMineCount,
+                            tierExpiredAt = uiState.userTierExpiredAt,
+                            onClick = onNavigateToProfile,
+                            modifier = Modifier.padding(horizontal = Spacing.lg)
+                        )
                     }
 
                     Spacer(Modifier.height(Spacing.md))

@@ -31,8 +31,10 @@ import com.titipin.app.shared.timeAgo
 import com.titipin.app.shared.waMessageJastip
 import com.titipin.app.shared.waMessageTakeRequest
 import com.titipin.app.ui.components.CategoryChipRow
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.StatusBadge
+import com.titipin.app.ui.components.TierBadge
 import com.titipin.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -568,6 +570,8 @@ fun RequestCard(
                         text = createdAtLabel,
                         fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily
                     )
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(request.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -579,6 +583,10 @@ fun RequestCard(
             }
 
             Spacer(Modifier.height(Spacing.sm))
+            if (!request.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(Spacing.sm))
+            }
 
             // ── Title ───────────────
             Text(
@@ -760,6 +768,8 @@ fun JastipCard(
                         color = Charcoal60,
                         fontFamily = DmSansFamily
                     )
+                    Spacer(Modifier.height(3.dp))
+                    TierBadge(jastip.user.tier, showBasic = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (isMine) {
@@ -787,6 +797,10 @@ fun JastipCard(
             }
 
             Spacer(Modifier.height(Spacing.sm))
+            if (!jastip.boostedAt.isNullOrBlank()) {
+                BoostedBadge()
+                Spacer(Modifier.height(Spacing.sm))
+            }
 
             Text(
                 text = jastip.title.ifBlank { "${jastip.fromLocation} → ${jastip.toLocation}" },

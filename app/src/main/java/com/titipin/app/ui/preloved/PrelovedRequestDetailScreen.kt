@@ -260,16 +260,28 @@ fun PrelovedRequestDetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         Text("💡", fontSize = 14.sp)
-                        Text(
-                            text = "Kamu punya barang yang cocok? Hubungi langsung lewat WhatsApp!",
-                            fontFamily = DmSansFamily,
-                            fontSize = 12.sp, color = Charcoal, lineHeight = 18.sp
-                        )
-                    }
+                    Text(
+                        text = "Kamu punya barang yang cocok? Hubungi langsung lewat WhatsApp!",
+                        fontFamily = DmSansFamily,
+                        fontSize = 12.sp, color = Charcoal, lineHeight = 18.sp
+                    )
+                }
 
-                    val isOwner = currentUserId == item.userId?.toString()
+                // Call UserContactPanel to show the user info and chat button
+                UserContactPanel(
+                    name = item.user.name,
+                    waNumber = item.user.waNumber,
+                    avatarUrl = item.user.avatarUrl,
+                    status = item.user.status,
+                    isOwner = currentUserId == item.userId?.toString(),
+                    ownerLabel = "Ini request Anda",
+                    message = waMessage,
+                    onChatWaClick = { viewModel.trackPrelovedRequestClick(item.id) }
+                )
 
-                    if (isOwner) {
+                val isOwner = currentUserId == item.userId?.toString()
+
+                if (isOwner) {
                         Spacer(Modifier.height(Spacing.sm))
                         OwnerPanel(
                             status = item.status,
@@ -299,6 +311,7 @@ fun PrelovedRequestDetailScreen(
                 ) {
                     Button(
                         onClick = {
+                            viewModel.trackPrelovedRequestClick(item.id)
                             openWhatsApp(context, item.user.waNumber, waMessage)
                         },
                         modifier = Modifier.fillMaxWidth().height(ComponentSize.buttonHeight),

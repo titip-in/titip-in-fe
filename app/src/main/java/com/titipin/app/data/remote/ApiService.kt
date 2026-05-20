@@ -184,4 +184,24 @@ interface ApiService {
 
     @POST("v1/preloved/requests/{id}/boost")
     suspend fun boostPrelovedRequest(@Path("id") id: String): Response<ApiResponse<BoostResponse>>
+
+    // ── ANALYTICS ─────────────────────────────────────────────────
+    @POST("v1/items/{type}/{id}/click")
+    suspend fun trackClick(
+        @Path("type") type: String,
+        @Path("id") id: String
+    ): Response<ApiResponse<Unit>>
+
+    @GET("v1/me/analytics")
+    suspend fun getAnalytics(): Response<ApiResponse<AnalyticsData>>
+
+    // ── SUBSCRIPTION ───────────────────────────────────────────────
+    @POST("v1/me/subscriptions/upgrade")
+    suspend fun upgradeSubscription(
+        @Body request: UpgradeSubscriptionRequest
+    ): Response<ApiResponse<Unit>>
+
+    // ── DELETE ACCOUNT ─────────────────────────────────────────────
+    @DELETE("v1/me")
+    suspend fun deleteAccount(): Response<ApiResponse<Unit>>
 }

@@ -305,6 +305,7 @@ fun PrelovedSayaScreen(
 }
 
 // ── PRELOVED LISTING CARD ─────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrelovedSayaCard(
     item: PrelovedDto,
@@ -381,15 +382,18 @@ private fun PrelovedSayaCard(
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
-                    modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                         .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                         .padding(horizontal = 12.dp, vertical = 6.dp)) {
                         Text("🗑 Hapus", fontSize = 11.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                            fontWeight = FontWeight.Medium)
+                            fontWeight = FontWeight.Medium, maxLines = 1)
                     }
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                    Box(modifier = Modifier.widthIn(min = 72.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                         .clickable(enabled = !isActionLoading && !isEditLoading) { onEdit() }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center) {
@@ -400,7 +404,7 @@ private fun PrelovedSayaCard(
                             )
                         } else {
                             Text("✎ Edit", fontSize = 11.sp, color = Gold, fontFamily = DmSansFamily,
-                                fontWeight = FontWeight.Medium)
+                                fontWeight = FontWeight.Medium, maxLines = 1)
                         }
                     }
                     if (isAvailable && onMarkSold != null) {
@@ -417,7 +421,7 @@ private fun PrelovedSayaCard(
                                 }
                             }
                         )
-                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Terracotta)
+                        Box(modifier = Modifier.widthIn(min = 120.dp).clip(RoundedCornerShape(Radius.full)).background(Terracotta)
                             .clickable(enabled = !isActionLoading) { showSoldDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center) {
@@ -425,16 +429,16 @@ private fun PrelovedSayaCard(
                                 CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
                             } else {
                                 Text("✓ Tandai Terjual", fontSize = 11.sp, color = Cream,
-                                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                    fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }
                     if (onBuka != null) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                        Box(modifier = Modifier.widthIn(min = 92.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                             .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp)) {
                             Text("Buka Lagi", fontSize = 11.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
@@ -496,6 +500,7 @@ private fun PrelovedSayaCard(
 }
 
 // ── PRELOVED REQUEST CARD ─────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrelovedRequestSayaCard(
     request: PrelovedRequestDto,
@@ -564,19 +569,22 @@ private fun PrelovedRequestSayaCard(
             Spacer(Modifier.height(Spacing.sm))
             HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
             Spacer(Modifier.height(Spacing.sm))
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.widthIn(min = 82.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                     .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                     .clickable(enabled = !isActionLoading) { onEdit() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
                 if (onTutup != null && isOpen) {
                     BoostActionButton(
@@ -592,7 +600,7 @@ private fun PrelovedRequestSayaCard(
                             }
                         }
                     )
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
@@ -600,16 +608,16 @@ private fun PrelovedRequestSayaCard(
                             CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
                         } else {
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
                 if (onBuka != null) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                    Box(modifier = Modifier.widthIn(min = 96.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                         .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text("Buka Lagi", fontSize = 12.sp, color = Cream,
-                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }

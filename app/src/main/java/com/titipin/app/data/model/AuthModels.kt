@@ -97,7 +97,9 @@ data class UserData(
     @SerializedName("created_at")
     val createdAt: String? = null,
     @SerializedName("updated_at")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    @SerializedName("deleted_at")
+    val deletedAt: String? = null
 )
 
 data class UploadImageResponse(

@@ -19,11 +19,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.titipin.app.data.model.UserTier
+import com.titipin.app.data.model.normalizedTier
+import com.titipin.app.data.model.tierBoostLimit
 import com.titipin.app.shared.formatDateDisplay
 import com.titipin.app.shared.formatDeadlineDisplay
 import com.titipin.app.shared.openWhatsApp
 import com.titipin.app.shared.waMessageJastipDetail
 import com.titipin.app.shared.formatTimeDisplay
+import com.titipin.app.ui.components.BoostedBadge
 import com.titipin.app.ui.components.DetailImageGallery
 import com.titipin.app.ui.components.LimitReachedDialog
 import com.titipin.app.ui.components.StatusBadge
@@ -41,6 +45,8 @@ fun JastipDetailScreen(
     val actionState by viewModel.actionState.collectAsState()
     val categoryState by viewModel.categoryState.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
+    val currentUserTier by viewModel.currentUserTier.collectAsState()
+    val currentBoostQuota by viewModel.currentBoostQuota.collectAsState()
     val context = LocalContext.current
 
     var limitReachedMsg by remember { mutableStateOf<String?>(null) }
@@ -63,6 +69,10 @@ fun JastipDetailScreen(
             }
             is JastipActionState.LimitReached -> {
                 limitReachedMsg = (actionState as JastipActionState.LimitReached).message
+                viewModel.resetActionState()
+            }
+            is JastipActionState.Error -> {
+                limitReachedMsg = (actionState as JastipActionState.Error).message
                 viewModel.resetActionState()
             }
             else -> Unit
@@ -148,6 +158,9 @@ fun JastipDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         StatusBadge(status = jastip.status)
+                        if (!jastip.boostedAt.isNullOrBlank()) {
+                            BoostedBadge()
+                        }
                         if (jastip.category != null) {
                             Text(
                                 text = listOfNotNull(jastip.category.icon, jastip.category.name).joinToString(" "),
@@ -226,7 +239,8 @@ fun JastipDetailScreen(
                             jastip.fromLocation,
                             jastip.toLocation,
                             formatDeadlineDisplay(jastip.deadline, includeYear = false)
-                        )
+                        ),
+                        onChatWaClick = { viewModel.trackJastipClick(jastip.id) }
                     )
 
                     if (isOwner) {
@@ -234,6 +248,10 @@ fun JastipDetailScreen(
                         OwnerPanel(
                             status = jastip.status,
                             isLoading = actionState is JastipActionState.Loading,
+                            tier = currentUserTier,
+                            boostQuota = currentBoostQuota,
+                            isBoosted = !jastip.boostedAt.isNullOrBlank(),
+                            onBoost = { viewModel.boostJastip(jastip.id) },
                             onToggleStatus = {
                                 if (jastip.status == "CLOSED") {
                                     showReopenDialog = true
@@ -264,6 +282,7 @@ fun JastipDetailScreen(
                     Button(
                         onClick = {
                             if (!isOwner) {
+                                viewModel.trackJastipClick(jastip.id)
                                 openWhatsApp(
                                     context, jastip.user.waNumber,
                                     waMessageJastipDetail(
@@ -348,12 +367,18 @@ fun InfoTile(emoji: String, label: String, value: String, modifier: Modifier = M
 private fun OwnerPanel(
     status: String,
     isLoading: Boolean,
+    tier: String,
+    boostQuota: Int,
+    isBoosted: Boolean,
+    onBoost: () -> Unit,
     onToggleStatus: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showStatusConfirm by remember { mutableStateOf(false) }
+    var showBoostConfirm by remember { mutableStateOf(false) }
+    var showUpgradeInfo by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -371,6 +396,26 @@ private fun OwnerPanel(
             color = Charcoal60,
             fontFamily = DmSansFamily
         )
+        Button(
+            onClick = {
+                if (tier.normalizedTier() == UserTier.BASIC || tierBoostLimit(tier) == 0 || boostQuota <= 0) {
+                    showUpgradeInfo = true
+                } else {
+                    showBoostConfirm = true
+                }
+            },
+            enabled = !isLoading && status == "ACTIVE",
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radius.full),
+            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Cream)
+        ) {
+            Text(
+                text = if (isBoosted) "Boost Ulang Listing" else "Boost Listing",
+                fontFamily = DmSansFamily,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { showStatusConfirm = true },
@@ -403,6 +448,42 @@ private fun OwnerPanel(
                 Text("Hapus", fontFamily = DmSansFamily, fontSize = 12.sp, color = Terracotta)
             }
         }
+    }
+
+    if (showBoostConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBoostConfirm = false },
+            containerColor = Cream,
+            title = { Text(if (isBoosted) "Boost Ulang Listing?" else "Boost Listing?", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Aksi ini memakai 1 kuota boost dan menaikkan listing ke prioritas atas.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBoostConfirm = false
+                    onBoost()
+                }) {
+                    Text("Boost", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBoostConfirm = false }) {
+                    Text("Batal", color = Charcoal60, fontFamily = DmSansFamily)
+                }
+            }
+        )
+    }
+
+    if (showUpgradeInfo) {
+        AlertDialog(
+            onDismissRequest = { showUpgradeInfo = false },
+            containerColor = Cream,
+            title = { Text("Upgrade untuk Boost", fontFamily = FrauncesFamily, color = Charcoal) },
+            text = { Text("Boost tersedia untuk Titip Plus dan Pro. Cek halaman Profil untuk upgrade via WhatsApp admin.", fontFamily = DmSansFamily) },
+            confirmButton = {
+                TextButton(onClick = { showUpgradeInfo = false }) {
+                    Text("Mengerti", color = Terracotta, fontFamily = DmSansFamily)
+                }
+            }
+        )
     }
 
     if (showStatusConfirm) {

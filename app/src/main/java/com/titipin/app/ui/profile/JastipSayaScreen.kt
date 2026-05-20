@@ -322,6 +322,7 @@ fun JastipSayaScreen(
 }
 
 // ── JASTIP LISTING CARD ───────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun JastipSayaCard(
     jastip: JastipDto,
@@ -405,15 +406,18 @@ private fun JastipSayaCard(
             Spacer(Modifier.height(Spacing.sm))
             HorizontalDivider(color = Charcoal10, thickness = 0.5.dp)
             Spacer(Modifier.height(Spacing.sm))
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.widthIn(min = 82.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                     .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                     .clickable(enabled = !isActionLoading && !isEditLoading) { onEdit() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center) {
@@ -424,7 +428,7 @@ private fun JastipSayaCard(
                         )
                     } else {
                         Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
-                            fontWeight = FontWeight.Medium)
+                            fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
                 if (onTutup != null) {
@@ -441,7 +445,7 @@ private fun JastipSayaCard(
                             }
                         }
                     )
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
@@ -449,16 +453,16 @@ private fun JastipSayaCard(
                             CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
                         } else {
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
                 if (onBuka != null) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                    Box(modifier = Modifier.widthIn(min = 96.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                         .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text("Buka Lagi", fontSize = 12.sp, color = Cream,
-                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }
@@ -519,6 +523,7 @@ private fun JastipSayaCard(
 }
 
 // ── JASTIP REQUEST CARD ───────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun JastipRequestSayaCard(
     request: RequestDto,
@@ -622,19 +627,22 @@ private fun JastipRequestSayaCard(
             Spacer(Modifier.height(Spacing.sm))
 
             // Action buttons
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(CreamDark)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.widthIn(min = 82.dp).clip(RoundedCornerShape(Radius.full)).background(CreamDark)
                     .clickable(enabled = !isActionLoading) { showDeleteDialog = true }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("🗑 Hapus", fontSize = 12.sp, color = Charcoal60, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
-                Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(GoldPale)
+                Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(GoldPale)
                     .clickable(enabled = !isActionLoading) { onEdit() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("✎ Edit", fontSize = 12.sp, color = Gold, fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.Medium)
+                        fontWeight = FontWeight.Medium, maxLines = 1)
                 }
                 if (onTutup != null && isOpen) {
                     BoostActionButton(
@@ -650,7 +658,7 @@ private fun JastipRequestSayaCard(
                             }
                         }
                     )
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Charcoal)
+                    Box(modifier = Modifier.widthIn(min = 78.dp).clip(RoundedCornerShape(Radius.full)).background(Charcoal)
                         .clickable(enabled = !isActionLoading) { showCloseDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center) {
@@ -658,16 +666,16 @@ private fun JastipRequestSayaCard(
                             CircularProgressIndicator(color = Cream, strokeWidth = 1.5.dp, modifier = Modifier.size(14.dp))
                         } else {
                             Text("✓ Tutup", fontSize = 12.sp, color = Cream,
-                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                                fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
                 if (onBuka != null) {
-                    Box(modifier = Modifier.clip(RoundedCornerShape(Radius.full)).background(Sage)
+                    Box(modifier = Modifier.widthIn(min = 96.dp).clip(RoundedCornerShape(Radius.full)).background(Sage)
                         .clickable(enabled = !isActionLoading) { showReopenDialog = true }
                         .padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text("Buka Lagi", fontSize = 12.sp, color = Cream,
-                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }
@@ -804,6 +812,7 @@ internal fun BoostActionButton(
     }
     Box(
         modifier = Modifier
+            .widthIn(min = 78.dp)
             .clip(RoundedCornerShape(Radius.full))
             .background(if (isBasic || boostQuota <= 0) CreamDark else GoldPale)
             .clickable(enabled = !isActionLoading) { onBoostClick() }
@@ -814,7 +823,8 @@ internal fun BoostActionButton(
             fontSize = 12.sp,
             color = if (isBasic || boostQuota <= 0) Charcoal60 else Gold,
             fontFamily = DmSansFamily,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
         )
     }
 }

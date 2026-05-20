@@ -1,24 +1,21 @@
 package com.titipin.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,8 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.titipin.app.data.model.ListingImageDto
-import com.titipin.app.ui.theme.Charcoal10
-import com.titipin.app.ui.theme.Charcoal30
 import com.titipin.app.ui.theme.Charcoal60
 import com.titipin.app.ui.theme.CreamDark
 import com.titipin.app.ui.theme.DmSansFamily
@@ -43,10 +38,7 @@ fun DetailImageGallery(
     modifier: Modifier = Modifier,
     contentDescription: String? = null
 ) {
-    var selectedIndex by remember(images) {
-        mutableIntStateOf(images.indexOfFirst { it.isPrimary }.takeIf { it >= 0 } ?: 0)
-    }
-    val selectedImage = images.getOrNull(selectedIndex)
+    val pagerState = rememberPagerState(pageCount = { maxOf(1, images.size) })
 
     androidx.compose.foundation.layout.Column(
         modifier = modifier.fillMaxWidth(),
@@ -60,7 +52,7 @@ fun DetailImageGallery(
                 .background(CreamDark),
             contentAlignment = Alignment.Center
         ) {
-            if (selectedImage == null) {
+            if (images.isEmpty()) {
                 Text(
                     text = "Belum ada foto",
                     color = Charcoal60,
@@ -69,37 +61,46 @@ fun DetailImageGallery(
                     fontFamily = DmSansFamily
                 )
             } else {
-                AsyncImage(
-                    model = selectedImage.imageUrl,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Crop
-                )
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val image = images.getOrNull(page)
+                    if (image != null) {
+                        AsyncImage(
+                            model = image.imageUrl,
+                            contentDescription = contentDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
             }
         }
 
         if (images.size > 1) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 2.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                itemsIndexed(images) { index, image ->
-                    val selected = selectedIndex == index
-                    AsyncImage(
-                        model = image.imageUrl,
-                        contentDescription = null,
+                repeat(images.size) { index ->
+                    Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(Charcoal10)
-                            .border(
-                                width = if (selected) 2.dp else 1.dp,
-                                color = if (selected) Terracotta else Charcoal30,
-                                shape = RoundedCornerShape(Radius.sm)
+                            .padding(horizontal = 2.dp)
+                            .then(
+                                if (pagerState.currentPage == index)
+                                    Modifier.width(16.dp).height(4.dp)
+                                else
+                                    Modifier.size(4.dp)
                             )
-                            .clickable { selectedIndex = index }
-                            .padding(if (selected) 2.dp else 0.dp),
-                        contentScale = ContentScale.Crop
+                            .clip(RoundedCornerShape(Radius.full))
+                            .background(
+                                if (pagerState.currentPage == index) Terracotta
+                                else Terracotta.copy(alpha = 0.3f)
+                            )
                     )
                 }
             }

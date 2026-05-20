@@ -20,13 +20,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.titipin.app.ui.components.AvatarCropDialog
 import com.titipin.app.ui.components.PlanSummaryPanel
 import com.titipin.app.ui.components.TierBadge
+import com.titipin.app.ui.components.UpgradePlanComparison
+import com.titipin.app.ui.components.UpgradeSubscriptionSheet
 import com.titipin.app.ui.theme.*
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileScreen(
     onLogout: () -> Unit = {},
@@ -34,12 +40,33 @@ fun ProfileScreen(
     onNavigateToPrelovedSaya: () -> Unit = {},
     onNavigateToReview: () -> Unit = {},
     onNavigateToPengaturan: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isUploadingAvatar by viewModel.isUploadingAvatar.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
+    val context = LocalContext.current
+
     var showReviewDialog by remember { mutableStateOf(false) }
     var avatarCropUri by remember { mutableStateOf<Uri?>(null) }
+    var showUpgradeSheet by remember { mutableStateOf(false) }
+    var upgradeTargetTier by remember { mutableStateOf("") }
+
+    LaunchedEffect(actionState) {
+        when (actionState) {
+            is ProfileActionState.Success -> {
+                Toast.makeText(context, (actionState as ProfileActionState.Success).message, Toast.LENGTH_LONG).show()
+                viewModel.resetActionState()
+                showUpgradeSheet = false
+            }
+            is ProfileActionState.Error -> {
+                Toast.makeText(context, (actionState as ProfileActionState.Error).message, Toast.LENGTH_LONG).show()
+                viewModel.resetActionState()
+            }
+            else -> Unit
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -167,16 +194,20 @@ fun ProfileScreen(
                                     }
                                 }
 
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         user.name.trim(),
                                         fontSize = 20.sp, fontWeight = FontWeight.Normal,
-                                        color = Cream, fontFamily = FrauncesFamily, lineHeight = 24.sp
+                                        color = Cream, fontFamily = FrauncesFamily, lineHeight = 24.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         user.email,
                                         fontSize = 11.sp, color = Cream.copy(alpha = 0.5f),
-                                        fontFamily = DmSansFamily
+                                        fontFamily = DmSansFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     if (!user.status.isNullOrBlank()) {
                                         Spacer(Modifier.height(2.dp))
@@ -187,7 +218,10 @@ fun ProfileScreen(
                                         )
                                     }
                                     Spacer(Modifier.height(6.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         TierBadge(user.tier)
                                         Box(
                                             modifier = Modifier
@@ -211,9 +245,11 @@ fun ProfileScreen(
                                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                                             ) {
                                                 Text(
-                                                    "📱 ${maskWaNumber(waNumber)}",
+                                                    maskWaNumber(waNumber),
                                                     fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                                    color = Gold, fontFamily = DmSansFamily
+                                                    color = Gold, fontFamily = DmSansFamily,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
@@ -296,7 +332,16 @@ fun ProfileScreen(
 
                         PlanSummaryPanel(
                             tier = user.tier,
-                            boostQuota = user.boostQuota
+                            boostQuota = user.boostQuota,
+                            tierExpiredAt = user.tierExpiredAt
+                        )
+
+                        UpgradePlanComparison(
+                            currentTier = user.tier,
+                            onUpgradeClick = { tier ->
+                                upgradeTargetTier = tier
+                                showUpgradeSheet = true
+                            }
                         )
 
                         Spacer(Modifier.height(4.dp))
@@ -306,6 +351,14 @@ fun ProfileScreen(
                         ProfileMenuItem(emoji = "🛍️", label = "Preloved Saya",
                             subtitle = "Lihat semua barang kamu", bgColor = TerracottaPale,
                             onClick = onNavigateToPrelovedSaya)
+                        ProfileMenuItem(
+                            emoji = "📊",
+                            label = "Analitik",
+                            subtitle = if (user.tier.lowercase() == "basic") "Upgrade Plus/Pro untuk akses" else "Views, klik WA, dan performa listing",
+                            bgColor = GoldPale,
+                            badge = if (user.tier.lowercase() == "basic") "Plus" else null,
+                            onClick = onNavigateToAnalytics
+                        )
                         ProfileMenuItem(emoji = "⭐", label = "Review & Rating",
                             subtitle = "— ulasan diterima", bgColor = GoldPale,
                             onClick = { showReviewDialog = true })
@@ -414,6 +467,17 @@ fun ProfileScreen(
             }
         )
     }
+
+    if (showUpgradeSheet && upgradeTargetTier.isNotEmpty()) {
+        UpgradeSubscriptionSheet(
+            targetTier = upgradeTargetTier,
+            onDismiss = { showUpgradeSheet = false },
+            onUpload = { uri -> viewModel.uploadProofImage(uri) },
+            onSubmit = { tier, proofUrl -> viewModel.upgradeSubscription(tier, proofUrl) },
+            isUploading = false,
+            isSubmitting = actionState is ProfileActionState.Loading
+        )
+    }
 }
 
 // Sensor WA: 0812-xxxx-8901
@@ -457,6 +521,7 @@ private fun ProfileMenuItem(
     label: String,
     subtitle: String,
     bgColor: androidx.compose.ui.graphics.Color,
+    badge: String? = null,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -483,6 +548,18 @@ private fun ProfileMenuItem(
                 color = Charcoal, fontFamily = DmSansFamily)
             Text(subtitle, fontSize = 10.sp, color = Charcoal60, fontFamily = DmSansFamily)
         }
-        Text("›", fontSize = 18.sp, color = Charcoal30, fontFamily = DmSansFamily)
+        if (badge != null) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.full))
+                    .background(GoldPale)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(badge, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    color = Gold, fontFamily = DmSansFamily, letterSpacing = 0.5.sp)
+            }
+        } else {
+            Text("›", fontSize = 18.sp, color = Charcoal30, fontFamily = DmSansFamily)
+        }
     }
 }

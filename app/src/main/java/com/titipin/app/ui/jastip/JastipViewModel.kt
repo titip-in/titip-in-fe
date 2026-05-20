@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import android.net.Uri
 import com.titipin.app.data.local.DataStoreManager
 import com.titipin.app.data.model.*
+import com.titipin.app.data.repository.BoostRepository
 import com.titipin.app.data.repository.CategoryRepository
+import com.titipin.app.data.repository.AnalyticsRepository
 import com.titipin.app.data.repository.JastipRepository
 import com.titipin.app.data.repository.Result
 import com.titipin.app.data.repository.UploadRepository
@@ -46,7 +48,9 @@ class JastipViewModel @Inject constructor(
     private val repository: JastipRepository,
     private val categoryRepository: CategoryRepository,
     private val dataStore: DataStoreManager,
-    private val uploadRepository: UploadRepository
+    private val uploadRepository: UploadRepository,
+    private val boostRepository: BoostRepository,
+    private val analyticsRepository: AnalyticsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<JastipListState>(JastipListState.Loading)
@@ -72,6 +76,9 @@ class JastipViewModel @Inject constructor(
 
     private val _currentUserTier = MutableStateFlow(UserTier.BASIC)
     val currentUserTier: StateFlow<String> = _currentUserTier.asStateFlow()
+
+    private val _currentBoostQuota = MutableStateFlow(0)
+    val currentBoostQuota: StateFlow<Int> = _currentBoostQuota.asStateFlow()
 
     // Load list saat screen pertama kali muncul
     init {
@@ -119,6 +126,7 @@ class JastipViewModel @Inject constructor(
         viewModelScope.launch {
             _currentUserId.value = dataStore.userId.firstOrNull()
             _currentUserTier.value = dataStore.userTier.firstOrNull().normalizedTier()
+            _currentBoostQuota.value = dataStore.userBoostQuota.firstOrNull() ?: 0
         }
     }
 
@@ -274,5 +282,23 @@ class JastipViewModel @Inject constructor(
         }
     }
 
+    fun boostJastip(id: String) {
+        viewModelScope.launch {
+            _actionState.value = JastipActionState.Loading
+            _actionState.value = when (val result = boostRepository.boostJastipListing(id)) {
+                is Result.Success -> {
+                    _currentBoostQuota.value = result.data.remainingQuota
+                    JastipActionState.Success()
+                }
+                is Result.Error -> JastipActionState.Error(result.message)
+            }
+        }
+    }
+
     fun resetActionState() { _actionState.value = JastipActionState.Idle }
+
+    /** Fire-and-forget: catat klik WA pada listing jastip */
+    fun trackJastipClick(id: String) {
+        analyticsRepository.trackClick("jastip_listing", id)
+    }
 }
